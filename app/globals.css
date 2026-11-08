@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    background-color: #f6f4ec;
+    color: #3a3327;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .caption-float {
+    animation: caption-float-in 180ms ease-out;
+  }
+  .tap-press {
+    transition: transform 100ms ease, opacity 100ms ease;
+  }
+  .tap-press:active {
+    transform: scale(0.98);
+  }
+}
+
+@keyframes caption-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caption-float {
+    animation: none;
+  }
+}
+
+/* iOS Safari：输入框字号 <16px 时聚焦会自动放大页面 */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
