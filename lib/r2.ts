@@ -6,8 +6,9 @@ export function safeFileName(name: string): string {
   return (cleaned.slice(-120) || 'image');
 }
 
-export function imageKey(deviceId: string, counterId: string, filename: string): string {
-  return `${deviceId}/${counterId}/${ulid()}-${safeFileName(filename)}`;
+/** 去 device_id 隔离后，key 不再含设备段。 */
+export function imageKey(counterId: string, filename: string): string {
+  return `${counterId}/${ulid()}-${safeFileName(filename)}`;
 }
 
 export async function uploadImage(

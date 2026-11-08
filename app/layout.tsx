@@ -5,7 +5,7 @@ import { siteName, siteSubtitle } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: `${siteName} · ${siteSubtitle}`,
-  description: '念佛计数器：即时点按计数、每满 5 声同步远端、每日零点当日归零、总数永久保留。',
+  description: '个人念佛器：登录后敲木鱼计数，每满 5 声同步远端，每日零点当日归零、总数永久保留。',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

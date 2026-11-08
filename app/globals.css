@@ -19,11 +19,16 @@
   .caption-float {
     animation: caption-float-in 180ms ease-out;
   }
+  /* 系统级按压反馈：scale(0.95) */
   .tap-press {
     transition: transform 100ms ease, opacity 100ms ease;
   }
   .tap-press:active {
-    transform: scale(0.98);
+    transform: scale(0.95);
+  }
+  /* 敲木鱼时的一圈淡出涟漪 */
+  .fish-ripple {
+    animation: fish-ripple-out 650ms ease-out forwards;
   }
 }
 
@@ -38,8 +43,20 @@
   }
 }
 
+@keyframes fish-ripple-out {
+  from {
+    transform: scale(0.82);
+    opacity: 0.65;
+  }
+  to {
+    transform: scale(1.32);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .caption-float {
+  .caption-float,
+  .fish-ripple {
     animation: none;
   }
 }

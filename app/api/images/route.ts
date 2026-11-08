@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ulid } from 'ulid';
 import { getEnv } from '@/lib/runtime';
-import { getDeviceId, jsonError } from '@/lib/http';
+import { requireSession, jsonError } from '@/lib/http';
+import { OWNER_ID } from '@/lib/auth';
 import { imageKey, uploadImage } from '@/lib/r2';
-import { imageUrl } from '@/lib/image-access';
+import { imageUrlFor } from '@/lib/image-access';
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -17,24 +18,21 @@ const UploadMeta = z.object({
 
 // 列表回显：详情页据此展示该计数器的全部图片
 export async function GET(req: NextRequest) {
-  const deviceId = getDeviceId(req);
-  if (!deviceId) return jsonError('device_id 缺失或非法', 400);
+  if (!(await requireSession(req))) return jsonError('未登录', 401);
   const counterId = new URL(req.url).searchParams.get('counter_id');
   if (!counterId) return jsonError('counter_id 缺失', 400);
   try {
     const { DB } = getEnv();
-    const owned = await DB.prepare('SELECT id FROM counters WHERE id = ? AND device_id = ?')
-      .bind(counterId, deviceId)
-      .first();
+    const owned = await DB.prepare('SELECT id FROM counters WHERE id = ?').bind(counterId).first();
     if (!owned) return jsonError('计数器不存在', 404);
     const res = await DB.prepare(
-      'SELECT id, r2_key, content_type, created_at FROM images WHERE counter_id = ? AND device_id = ? ORDER BY created_at ASC, id ASC',
+      'SELECT id, r2_key, content_type, created_at FROM images WHERE counter_id = ? ORDER BY created_at ASC, id ASC',
     )
-      .bind(counterId, deviceId)
+      .bind(counterId)
       .all<{ id: string; r2_key: string; content_type: string | null; created_at: string }>();
     const images = (res.results ?? []).map((r) => ({
       id: r.id,
-      url: imageUrl(r.r2_key, deviceId),
+      url: imageUrlFor(r.r2_key),
       content_type: r.content_type,
       created_at: r.created_at,
     }));
@@ -45,14 +43,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireSession(req))) return jsonError('未登录', 401);
   const form = await req.formData().catch(() => null);
   if (!form) return jsonError('表单无效', 400);
   const counterIdRaw = form.get('counter_id');
   const file = form.get('file');
-  const bodyDeviceId = form.get('device_id');
 
-  const deviceId = getDeviceId(req, { device_id: typeof bodyDeviceId === 'string' ? bodyDeviceId : undefined });
-  if (!deviceId) return jsonError('device_id 缺失或非法', 400);
   if (typeof counterIdRaw !== 'string' || !counterIdRaw) return jsonError('缺少 counter_id', 400);
   if (!file || typeof file === 'string') return jsonError('缺少 file', 400);
 
@@ -66,21 +62,19 @@ export async function POST(req: NextRequest) {
 
   try {
     const { DB, IMAGES } = getEnv();
-    const owned = await DB.prepare('SELECT id FROM counters WHERE id = ? AND device_id = ?')
-      .bind(counterIdRaw, deviceId)
-      .first();
+    const owned = await DB.prepare('SELECT id FROM counters WHERE id = ?').bind(counterIdRaw).first();
     if (!owned) return jsonError('计数器不存在', 404);
 
-    const key = imageKey(deviceId, counterIdRaw, file.name || 'image');
+    const key = imageKey(counterIdRaw, file.name || 'image');
     const contentType = file.type || 'application/octet-stream';
     await uploadImage(IMAGES, key, await file.arrayBuffer(), contentType);
     const id = ulid();
     await DB.prepare(
       'INSERT INTO images (id, counter_id, device_id, r2_key, content_type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     )
-      .bind(id, counterIdRaw, deviceId, key, contentType, new Date().toISOString())
+      .bind(id, counterIdRaw, OWNER_ID, key, contentType, new Date().toISOString())
       .run();
-    return NextResponse.json({ id, url: imageUrl(key, deviceId) }, { status: 201 });
+    return NextResponse.json({ id, url: imageUrlFor(key) }, { status: 201 });
   } catch {
     return jsonError('上传失败', 500);
   }

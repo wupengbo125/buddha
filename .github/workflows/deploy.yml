@@ -31,6 +31,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler d1 migrations apply buddha --remote
 
+      # 幂等：每次部署都保证 Worker secret common_password 存在（密码不进仓库 / 不进日志）。
+      - name: Sync common_password secret
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMMON_PASSWORD: ${{ secrets.COMMON_PASSWORD }}
+        run: printf '%s' "$COMMON_PASSWORD" | pnpm exec wrangler secret put common_password
+
       - name: Build and Deploy with OpenNext
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

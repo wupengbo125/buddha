@@ -11,7 +11,10 @@ export function getEnv(): Env {
     const { env } = getCloudflareContext();
     const e = env as unknown as { DB?: D1Database; IMAGES?: R2BucketLike };
     if (e && e.DB && typeof e.DB.prepare === 'function') {
-      return { DB: e.DB, IMAGES: e.IMAGES ?? getLocalR2() };
+      return {
+        DB: e.DB,
+        IMAGES: e.IMAGES ?? getLocalR2(),
+      };
     }
   } catch {
     // 不在 Cloudflare 运行时
