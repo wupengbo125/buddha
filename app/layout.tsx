@@ -30,7 +30,7 @@ const themeBootScript = `(function(){try{var t=localStorage.getItem(${JSON.strin
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className="min-h-screen font-sans antialiased">
+      <body className="font-sans antialiased">
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         {children}
       </body>
