@@ -1,135 +1,67 @@
-// 客户端计数器的纯状态逻辑。不依赖浏览器 / Cloudflare，便于单测。
-// UI 即时读本地状态（localStorage 持久化），推送通过带随机 event_id 的幂等接口与服务端对齐。
+// 客户端计数显示的纯逻辑。不依赖浏览器 / Cloudflare，便于单测。
+// v6：服务端为唯一权威，本地只做乐观 +1 与服务端响应校正；不再有攒批 / pending / localStorage 对账。
+// 点一次即生成一个独立 event_id 的上报请求；失败重试沿用同一 event_id（服务端按它幂等）。
 
 import { ulid } from 'ulid';
-
-export interface PendingBatch {
-  eventId: string; // flush 事件唯一 id（幂等键）；重试沿用同一 id
-  date: string; // 该批尾数所属日期（YYYY-MM-DD），跨零点不洗日期
-  delta: number; // 该批未推送声数
-}
 
 export interface CounterState {
   total: number;
   today: number;
-  pending: PendingBatch[]; // 未推送尾数，按日期分组
-  lastPushedTotal: number; // 最近一次服务端确认的总数
   today_date: string;
 }
 
-/** 累计每达到 5 的倍数推一次远端。 */
-export const PUSH_EVERY = 5;
+/** 一次点击的上报请求：重试沿用同一 eventId，date 为该次点击的日期键。 */
+export interface TapRequest {
+  eventId: string;
+  date: string;
+}
 
-/** 新批次 id：随机 ulid，保证与历史 flush 不撞车。 */
+/** 新点击的幂等键：随机 ulid，保证与历史点击不撞车。 */
 export function newEventId(): string {
   return ulid();
 }
 
 export function createState(date: string): CounterState {
-  return { total: 0, today: 0, pending: [], lastPushedTotal: 0, today_date: date };
+  return { total: 0, today: 0, today_date: date };
 }
 
-/** 是否到达推送边界（累计为 5 的倍数）。 */
-export function shouldPush(total: number): boolean {
-  return total > 0 && total % PUSH_EVERY === 0;
+/** 用服务端计数器初始化显示状态（服务端唯一权威）。 */
+export function stateFromCounter(c: { total: number; today: number; today_date: string }): CounterState {
+  return { total: c.total, today: c.today, today_date: c.today_date };
 }
 
-/** 点按一次：本地即时 +1；尾数按日期归入对应批次（新日期自动新建批次）。 */
+/**
+ * 点按一次：乐观 +1 立即刷新 UI，同时生成本次点击独立的上报请求。
+ * 跨零点当日归零、总数累加（与服务端原子 SQL 语义一致）。
+ */
 export function tap(
   state: CounterState,
   date: string,
   makeEventId: () => string = newEventId,
-): { state: CounterState; push: boolean } {
-  const base = date === state.today_date ? state : { ...state, today: 0, today_date: date };
-  const pending = base.pending.map((b) => ({ ...b }));
-  let idx = -1;
-  for (let i = pending.length - 1; i >= 0; i--) {
-    if (pending[i].date === date) {
-      idx = i;
-      break;
-    }
-  }
-  if (idx >= 0) pending[idx] = { ...pending[idx], delta: pending[idx].delta + 1 };
-  else pending.push({ eventId: makeEventId(), date, delta: 1 });
-  const total = base.total + 1;
-  const next: CounterState = { ...base, total, today: base.today + 1, pending };
-  return { state: next, push: shouldPush(total) };
-}
-
-/** 未推送尾数总和。 */
-export function pendingTotal(state: CounterState): number {
-  return state.pending.reduce((n, b) => n + b.delta, 0);
-}
-
-/** 是否有未推送的尾数需要兜底补推。 */
-export function needsFlush(state: CounterState): boolean {
-  return pendingTotal(state) > 0;
-}
-
-/** 待推送批次快照（按创建顺序，旧日期在前）。 */
-export function flushPayloads(state: CounterState): PendingBatch[] {
-  return state.pending.map((b) => ({ ...b }));
+): { state: CounterState; request: TapRequest } {
+  const sameDay = date === state.today_date;
+  return {
+    state: {
+      total: state.total + 1,
+      today: sameDay ? state.today + 1 : 1,
+      today_date: date,
+    },
+    request: { eventId: makeEventId(), date },
+  };
 }
 
 /**
- * 服务端确认一批次后：减去已确认的 delta；若期间又有新点按，余量换一个新 eventId 继续保留。
- * 只有显式确认（applied 或同 id 重发）才调用，绝不无条件清 pending。
+ * 用服务端响应校正显示（服务端唯一权威）。
+ * total 取较大值：并发快速点击的响应可能乱序返回，避免旧响应把显示拉回倒退。
  */
-export function confirmFlushed(
+export function applyServerTotals(
   state: CounterState,
-  sentBatches: PendingBatch[],
-  makeEventId: () => string = newEventId,
-  totalPushed: number = state.lastPushedTotal,
+  res: { total: number; today: number; today_date: string },
 ): CounterState {
-  const pending = state.pending.map((b) => ({ ...b }));
-  for (const sent of sentBatches) {
-    const idx = pending.findIndex((b) => b.eventId === sent.eventId);
-    if (idx < 0) continue;
-    const remaining = pending[idx].delta - sent.delta;
-    if (remaining <= 0) pending.splice(idx, 1);
-    else pending[idx] = { ...pending[idx], delta: remaining, eventId: makeEventId() };
-  }
-  return { ...state, pending, lastPushedTotal: totalPushed };
-}
-
-/** 跨零点：当日归零、总数不变；pending 按日期原样保留（旧日期尾数记入旧日期）。 */
-export function rollover(state: CounterState, newDate: string): CounterState {
-  return { ...state, today: 0, today_date: newDate };
-}
-
-/** 解析 / 修复持久化的本地状态；损坏则返回 null，交由服务端对账恢复。 */
-export function sanitizeState(value: unknown): CounterState | null {
-  if (!value || typeof value !== 'object') return null;
-  const v = value as Record<string, unknown>;
-  const asCount = (x: unknown): number | null =>
-    typeof x === 'number' && Number.isFinite(x) && x >= 0 ? Math.floor(x) : null;
-  const total = asCount(v.total);
-  const today = asCount(v.today);
-  if (total === null || today === null || typeof v.today_date !== 'string') return null;
-  const pending: PendingBatch[] = [];
-  if (Array.isArray(v.pending)) {
-    for (const raw of v.pending) {
-      if (!raw || typeof raw !== 'object') continue;
-      const b = raw as Record<string, unknown>;
-      const delta = asCount(b.delta);
-      if (
-        typeof b.eventId !== 'string' ||
-        !b.eventId ||
-        typeof b.date !== 'string' ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(b.date) ||
-        delta === null ||
-        delta <= 0
-      ) {
-        continue;
-      }
-      pending.push({ eventId: b.eventId, date: b.date, delta });
-    }
-  }
+  const sameDay = res.today_date === state.today_date;
   return {
-    total,
-    today,
-    pending,
-    lastPushedTotal: asCount(v.lastPushedTotal) ?? total,
-    today_date: v.today_date,
+    total: Math.max(state.total, res.total),
+    today: sameDay ? Math.max(state.today, res.today) : res.today,
+    today_date: res.today_date,
   };
 }

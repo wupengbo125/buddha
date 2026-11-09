@@ -1,171 +1,89 @@
 import { describe, expect, it } from 'vitest';
-import {
-  PUSH_EVERY,
-  confirmFlushed,
-  createState,
-  flushPayloads,
-  needsFlush,
-  pendingTotal,
-  rollover,
-  sanitizeState,
-  shouldPush,
-  tap,
-} from '@/lib/counter-store';
+import { applyServerTotals, createState, newEventId, stateFromCounter, tap } from '@/lib/counter-store';
 
 function idMaker() {
   let n = 0;
   return () => `E${++n}`;
 }
 
-describe('total % 5 推送判定', () => {
-  it('只在累计为 5 的倍数时推送', () => {
-    expect(PUSH_EVERY).toBe(5);
-    expect(shouldPush(0)).toBe(false);
-    for (const n of [1, 2, 3, 4, 6, 7, 9, 11, 14]) expect(shouldPush(n)).toBe(false);
-    for (const n of [5, 10, 15, 20, 100]) expect(shouldPush(n)).toBe(true);
+describe('显示状态初始化', () => {
+  it('createState 从 0 起算', () => {
+    expect(createState('2026-01-01')).toEqual({ total: 0, today: 0, today_date: '2026-01-01' });
   });
 
-  it('第 5 次点按触发 push', () => {
-    let state = createState('2026-01-01');
+  it('stateFromCounter 用服务端值初始化（服务端唯一权威）', () => {
+    expect(stateFromCounter({ total: 12, today: 4, today_date: '2026-01-01' })).toEqual({
+      total: 12,
+      today: 4,
+      today_date: '2026-01-01',
+    });
+  });
+});
+
+describe('v6 · 点一次即上报一次', () => {
+  it('点一次乐观 +1，并生成本次点击独立的上报请求', () => {
     const make = idMaker();
-    const pushes: boolean[] = [];
+    const r1 = tap(createState('2026-01-01'), '2026-01-01', make);
+    expect(r1.state).toEqual({ total: 1, today: 1, today_date: '2026-01-01' });
+    expect(r1.request).toEqual({ eventId: 'E1', date: '2026-01-01' });
+    const r2 = tap(r1.state, '2026-01-01', make);
+    expect(r2.state.total).toBe(2);
+    expect(r2.request).toEqual({ eventId: 'E2', date: '2026-01-01' });
+  });
+
+  it('连续 5 次点击 = 5 个请求，event_id 各不相同（不再攒 5 次）', () => {
+    const make = idMaker();
+    let state = createState('2026-01-01');
+    const reqs = [];
     for (let i = 0; i < 5; i++) {
       const r = tap(state, '2026-01-01', make);
       state = r.state;
-      pushes.push(r.push);
+      reqs.push(r.request);
     }
-    expect(pushes).toEqual([false, false, false, false, true]);
-  });
-});
-
-describe('点按与 pending 按日期分组', () => {
-  it('即时 +1：total / today / pending 各加一，尾数归入同日期批次', () => {
-    const make = idMaker();
-    const s0 = createState('2026-01-01');
-    const r1 = tap(s0, '2026-01-01', make);
-    expect(r1.state.total).toBe(1);
-    expect(r1.state.today).toBe(1);
-    expect(pendingTotal(r1.state)).toBe(1);
-    expect(r1.state.pending).toEqual([{ eventId: 'E1', date: '2026-01-01', delta: 1 }]);
-    expect(r1.push).toBe(false);
-    const r2 = tap(r1.state, '2026-01-01', make);
-    expect(r2.state.total).toBe(2);
-    expect(pendingTotal(r2.state)).toBe(2);
-    expect(r2.state.pending).toEqual([{ eventId: 'E1', date: '2026-01-01', delta: 2 }]);
-  });
-
-  it('连续 5 次 pending 累加到 5', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 5; i++) state = tap(state, '2026-01-01', make).state;
-    expect(pendingTotal(state)).toBe(5);
+    expect(reqs).toHaveLength(5); // 一次点击一次请求
+    expect(new Set(reqs.map((r) => r.eventId)).size).toBe(5); // 每次点击独立 event_id
     expect(state.total).toBe(5);
   });
-});
 
-describe('R1 · 随机 event_id 幂等', () => {
-  it('event_id 随 pending 持久化，重试沿用同一 id', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 5; i++) state = tap(state, '2026-01-01', make).state;
-    const first = flushPayloads(state);
-    const retry = flushPayloads(state);
-    expect(first).toEqual(retry);
-    expect(first[0].eventId).toBe('E1');
-    expect(needsFlush(state)).toBe(true);
+  it('newEventId 为互不相同的 ulid，符合服务端 zod 校验格式', () => {
+    const ids = Array.from({ length: 50 }, () => newEventId());
+    expect(new Set(ids).size).toBe(50);
+    for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
-  it('服务端确认本批次后才清 pending；确认后新点按生成全新 event_id（不撞历史）', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 5; i++) state = tap(state, '2026-01-01', make).state;
-    const batch = flushPayloads(state)[0];
-    state = confirmFlushed(state, [batch], make, 5);
-    expect(needsFlush(state)).toBe(false);
-    expect(state.total).toBe(5);
-    const r = tap(state, '2026-01-01', make);
-    expect(r.state.pending[0].eventId).not.toBe('E1');
-    expect(r.state.pending[0].eventId).toBe('E2');
-    expect(r.state.total).toBe(6);
-  });
-
-  it('确认时期间的新点按保留：余量换新 event_id，不吞计数', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 5; i++) state = tap(state, '2026-01-01', make).state;
-    const batch = flushPayloads(state)[0];
-    let during = tap(state, '2026-01-01', make).state;
-    during = tap(during, '2026-01-01', make).state;
-    const confirmed = confirmFlushed(during, [batch], make, 5);
-    expect(confirmed.total).toBe(7);
-    expect(pendingTotal(confirmed)).toBe(2);
-    expect(confirmed.pending[0].eventId).not.toBe('E1');
-    expect(confirmed.pending[0].delta).toBe(2);
-  });
-
-  it('响应非本批次时不确认（不得无条件清 pending）', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 5; i++) state = tap(state, '2026-01-01', make).state;
-    const other = { eventId: 'NOT-THIS', date: '2026-01-01', delta: 5 };
-    const after = confirmFlushed(state, [other], make, 5);
-    expect(pendingTotal(after)).toBe(5);
-    expect(after.pending[0].eventId).toBe('E1');
-  });
-
-  it('损坏 / 非法本地 state 返回 null，交由服务端对账恢复', () => {
-    expect(sanitizeState(null)).toBeNull();
-    expect(sanitizeState({ total: 'x' })).toBeNull();
-    expect(sanitizeState({ total: 5, today: 2, today_date: '2026-01-01', pending: 'bad' })).toMatchObject({
-      total: 5,
-      pending: [],
-    });
-    expect(sanitizeState({ total: 5, today: 2, today_date: '2026-01-01', pending: [{ eventId: 'E', date: 'bad', delta: 3 }] })).toMatchObject({
-      total: 5,
-      pending: [],
-    });
-  });
-});
-
-describe('R2 · 跨零点 pending 按日期分组', () => {
-  it('rollover 保留旧日期 pending、总数不变、当日归零', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 7; i++) state = tap(state, '2026-01-01', make).state;
-    const before = state.total;
-    const next = rollover(state, '2026-01-02');
-    expect(next.today).toBe(0);
-    expect(next.total).toBe(before);
-    expect(next.today_date).toBe('2026-01-02');
-    expect(next.pending).toEqual([{ eventId: 'E1', date: '2026-01-01', delta: 7 }]);
-  });
-
-  it('旧日期尾数与新日期尾数分成两个批次，各自带自己的 date 上报', () => {
+  it('跨零点：当日归零、总数继续累加，请求带新日期', () => {
     const make = idMaker();
     let state = createState('2026-01-01');
     for (let i = 0; i < 3; i++) state = tap(state, '2026-01-01', make).state;
-    let next = rollover(state, '2026-01-02');
-    for (let i = 0; i < 2; i++) next = tap(next, '2026-01-02', make).state;
-    expect(next.pending).toEqual([
-      { eventId: 'E1', date: '2026-01-01', delta: 3 },
-      { eventId: 'E2', date: '2026-01-02', delta: 2 },
-    ]);
-    expect(next.total).toBe(5);
-    expect(next.today).toBe(2);
-    // 禁止把整笔 delta 全记当前日：每批带自己的 date
-    expect(flushPayloads(next).map((p) => [p.date, p.delta])).toEqual([
-      ['2026-01-01', 3],
-      ['2026-01-02', 2],
-    ]);
+    const r = tap(state, '2026-01-02', make);
+    expect(r.state).toEqual({ total: 4, today: 1, today_date: '2026-01-02' });
+    expect(r.request.date).toBe('2026-01-02');
+  });
+});
+
+describe('applyServerTotals · 服务端响应校正', () => {
+  it('用服务端值校正显示', () => {
+    const s = { total: 1, today: 1, today_date: '2026-01-01' };
+    expect(applyServerTotals(s, { total: 3, today: 3, today_date: '2026-01-01' })).toEqual({
+      total: 3,
+      today: 3,
+      today_date: '2026-01-01',
+    });
   });
 
-  it('点按遇日期变化：当日重新计、总数继续累加', () => {
-    const make = idMaker();
-    let state = createState('2026-01-01');
-    for (let i = 0; i < 7; i++) state = tap(state, '2026-01-01', make).state;
-    const r = tap(state, '2026-01-02', make);
-    expect(r.state.total).toBe(8);
-    expect(r.state.today).toBe(1);
-    expect(r.state.today_date).toBe('2026-01-02');
+  it('并发响应乱序：旧响应不把显示拉回倒退', () => {
+    const afterB = { total: 12, today: 12, today_date: '2026-01-01' };
+    const lateA = applyServerTotals(afterB, { total: 11, today: 11, today_date: '2026-01-01' });
+    expect(lateA.total).toBe(12);
+    expect(lateA.today).toBe(12);
+  });
+
+  it('跨零点响应：当日按服务端归零后值、总数不倒退', () => {
+    const s = { total: 20, today: 8, today_date: '2026-01-01' };
+    expect(applyServerTotals(s, { total: 21, today: 1, today_date: '2026-01-02' })).toEqual({
+      total: 21,
+      today: 1,
+      today_date: '2026-01-02',
+    });
   });
 });

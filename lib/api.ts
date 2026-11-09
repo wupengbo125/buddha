@@ -36,7 +36,10 @@ export const api = {
       body: JSON.stringify({ name, caption }),
     });
   },
-  updateCounter(id: string, patch: { name?: string; caption?: string }): Promise<{ counter: Counter }> {
+  updateCounter(
+    id: string,
+    patch: { name?: string; caption?: string; sound_enabled?: number },
+  ): Promise<{ counter: Counter }> {
     return request(`/api/counters/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -45,13 +48,11 @@ export const api = {
   deleteCounter(id: string): Promise<{ ok: boolean }> {
     return request(`/api/counters/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
-  reportTap(
-    id: string,
-    body: { event_id: string; delta: number; date: string },
-  ): Promise<TapResult> {
+  // 每次点击一次上报，delta 固定 1；event_id 为该次点击新生成的幂等键。
+  reportTap(id: string, body: { event_id: string; date: string }): Promise<TapResult> {
     return request(`/api/counters/${encodeURIComponent(id)}/taps`, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, delta: 1 }),
     });
   },
   listImages(counterId: string): Promise<{ images: ImageView[] }> {

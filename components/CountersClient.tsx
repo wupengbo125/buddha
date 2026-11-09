@@ -12,7 +12,7 @@ function errorMessage(e: unknown): string {
 
 type Edit = { id: string; field: 'name' | 'caption'; value: string } | null;
 
-/** 添加页：佛号列表 + 添加 + 改名 + 删除 + 字幕文案编辑 + 进入图片管理。不计数、无设置项。 */
+/** 添加页：佛号列表 + 添加 + 改名 + 删除 + 字幕文案编辑 + 每项目音效开关 + 进入图片管理。 */
 export function CountersClient() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [newName, setNewName] = useState('');
@@ -69,6 +69,17 @@ export function CountersClient() {
     }
   };
 
+  // 每个计数器独立音效开关：写 D1（PATCH），跟账号走、跨设备一致。
+  const toggleSound = async (c: Counter) => {
+    const next = c.sound_enabled === 1 ? 0 : 1;
+    try {
+      const { counter } = await api.updateCounter(c.id, { sound_enabled: next });
+      setCounters((prev) => prev.map((x) => (x.id === c.id ? counter : x)));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   const remove = async (id: string) => {
     setError('');
     try {
@@ -84,7 +95,7 @@ export function CountersClient() {
     <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-6 md:pb-12">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-wide text-ink">添加佛号</h1>
-        <p className="mt-1 text-sm text-muted">管理佛号、字幕文案与图片</p>
+        <p className="mt-1 text-sm text-muted">管理佛号、字幕文案、音效与图片</p>
       </header>
 
       {/* 添加输入框：四页里只有本页有；念佛页没有 */}
@@ -119,6 +130,7 @@ export function CountersClient() {
           {counters.map((c) => {
             const editingName = edit?.id === c.id && edit.field === 'name';
             const editingCaption = edit?.id === c.id && edit.field === 'caption';
+            const soundOn = c.sound_enabled === 1;
             return (
               <li key={c.id} className="px-4 py-4">
                 {editingName ? (
@@ -207,6 +219,28 @@ export function CountersClient() {
                       </button>
                     </>
                   )}
+                </div>
+
+                <div className="mt-2 flex items-center gap-2 text-sm">
+                  <span className="shrink-0 text-muted">音效</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={soundOn}
+                    aria-label={`切换 ${c.name} 音效`}
+                    onClick={() => void toggleSound(c)}
+                    className={`tap-press relative h-6 w-11 shrink-0 rounded-full border border-line transition-colors ${
+                      soundOn ? 'bg-accent' : 'bg-line'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                        soundOn ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-ink-soft">{soundOn ? '开' : '关'}</span>
+                  <span className="ml-auto text-xs text-muted">全局总开关见设置页</span>
                 </div>
               </li>
             );

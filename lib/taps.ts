@@ -1,4 +1,6 @@
-// 服务端计数累加的纯逻辑。API route 复用 accumulateTotals，TapLedger 用于幂等语义单测。
+// 服务端计数累加的纯逻辑镜像：与 taps/route.ts 的原子 UPDATE 语义保持一致。
+// 生产用单条原子 SQL 累加（避免读-改-写并发丢更新）；此处 accumulateTotals + TapLedger
+// 用同样的语义，在不依赖 Cloudflare 的纯逻辑单测里覆盖「原子累加 / 跨零点 / event_id 幂等」。
 
 export interface CounterTotals {
   total: number;
@@ -6,16 +8,17 @@ export interface CounterTotals {
   today_date: string;
 }
 
-/** 把一个 tap 事件累加进计数器：date 变化则当日归零，总数始终累加。 */
+/**
+ * 与原子 SQL 等价：
+ *   total = total + delta
+ *   today = CASE WHEN today_date = ? THEN today + delta ELSE delta END
+ *   today_date = ?   （无条件设为本次请求的 date）
+ * 生产 delta 恒为 1；测试可用任意正数验证累加。
+ */
 export function accumulateTotals(prev: CounterTotals, delta: number, date: string): CounterTotals {
-  const total = prev.total + delta;
-  if (date < prev.today_date) {
-    // 迟到事件（日期早于当前记录）：只累加总数，不改写「当日」，避免旧日期尾数污染今日
-    return { total, today: prev.today, today_date: prev.today_date };
-  }
   const sameDay = date === prev.today_date;
   return {
-    total,
+    total: prev.total + delta,
     today: sameDay ? prev.today + delta : delta,
     today_date: date,
   };

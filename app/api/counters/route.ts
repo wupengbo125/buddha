@@ -7,7 +7,7 @@ import { OWNER_ID } from '@/lib/auth';
 import type { Counter } from '@/lib/types';
 
 const SELECT_COUNTER =
-  'SELECT id, device_id, name, caption, total, today, today_date, created_at, updated_at FROM counters';
+  'SELECT id, device_id, name, caption, total, today, today_date, sound_enabled, created_at, updated_at FROM counters';
 
 export async function GET(req: NextRequest) {
   if (!(await requireSession(req))) return jsonError('未登录', 401);
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
     const { DB } = getEnv();
     const id = ulid();
     const now = new Date().toISOString();
+    // 新建默认开启该计数器音效（sound_enabled = 1）。
     await DB.prepare(
-      "INSERT INTO counters (id, device_id, name, caption, total, today, today_date, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 0, '', ?, ?)",
+      'INSERT INTO counters (id, device_id, name, caption, total, today, today_date, sound_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 0, \'\', 1, ?, ?)',
     )
       .bind(id, OWNER_ID, parsed.data.name, parsed.data.caption, now, now)
       .run();

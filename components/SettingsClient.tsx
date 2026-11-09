@@ -16,7 +16,7 @@ import {
   type Settings,
 } from '@/lib/settings';
 
-/** 设置页：字幕淡出时长、时区、外观、域名说明、退出登录。不添加佛号、不计数。 */
+/** 设置页：点击音效全局总开关、字幕淡出时长、时区、外观、域名说明、退出登录。 */
 export function SettingsClient() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>(defaultSettings());
@@ -62,6 +62,7 @@ export function SettingsClient() {
     const next: Settings = {
       captionMs: p.captionMs !== undefined ? clampCaptionMs(p.captionMs) : clampCaptionMs(settings.captionMs),
       timeZone: p.timeZone !== undefined ? p.timeZone : settings.timeZone,
+      soundEnabled: p.soundEnabled !== undefined ? p.soundEnabled : settings.soundEnabled,
     };
     setSettings(next);
     saveSettings(next);
@@ -92,6 +93,28 @@ export function SettingsClient() {
       </header>
 
       <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 text-sm">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-ink-soft">点击音效</span>
+            <span className="text-xs text-muted">一键全关；开启后每个佛号可单独设置</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.soundEnabled}
+            aria-label="点击音效全局总开关"
+            onClick={() => patch({ soundEnabled: !settings.soundEnabled })}
+            className={`tap-press relative h-7 w-12 shrink-0 rounded-full border border-line transition-colors ${
+              settings.soundEnabled ? 'bg-accent' : 'bg-line'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
+                settings.soundEnabled ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
         <div className="flex flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-0.5">
             <span className="text-ink-soft">外观</span>

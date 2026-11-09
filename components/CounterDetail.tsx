@@ -20,7 +20,7 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : '操作失败';
 }
 
-/** 详情页：只管该佛号的图片（上传/删除/回显）与单计数器字幕时长。不管全局设置 / 其它佛号。 */
+/** 详情页：该佛号的图片（上传/删除/回显）、单计数器字幕时长、独立音效开关。 */
 export function CounterDetail({ id }: { id: string }) {
   const [counter, setCounter] = useState<Counter | null>(null);
   const [images, setImages] = useState<ImageView[]>([]);
@@ -60,6 +60,18 @@ export function CounterDetail({ id }: { id: string }) {
     const clamped = clampCaptionMs(Number(captionMsInput));
     saveCaptionOverride(id, clamped);
     setCaptionMsInput(String(clamped));
+  };
+
+  // 每个计数器独立音效开关：写 D1（PATCH），跟账号走、跨设备一致。
+  const toggleSound = async () => {
+    if (!counter) return;
+    const next = counter.sound_enabled === 1 ? 0 : 1;
+    try {
+      const { counter: updated } = await api.updateCounter(id, { sound_enabled: next });
+      setCounter(updated);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
   };
 
   const uploadFiles = async (files: FileList | null) => {
@@ -108,6 +120,29 @@ export function CounterDetail({ id }: { id: string }) {
         <p className="mt-12 text-center text-muted">计数器不存在</p>
       ) : (
         <div className="space-y-6">
+          <section className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-4">
+            <div className="flex flex-col gap-0.5">
+              <h2 className="text-base font-semibold text-ink">音效</h2>
+              <p className="text-xs text-muted">点按此佛号时播放木鱼声；设置页可一键全关</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={counter.sound_enabled === 1}
+              aria-label="切换此佛号音效"
+              onClick={() => void toggleSound()}
+              className={`tap-press relative h-7 w-12 shrink-0 rounded-full border border-line transition-colors ${
+                counter.sound_enabled === 1 ? 'bg-accent' : 'bg-line'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
+                  counter.sound_enabled === 1 ? 'left-[22px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </section>
+
           <section className="rounded-2xl border border-line bg-surface px-4 py-4">
             <h2 className="mb-1 text-base font-semibold text-ink">字幕时长覆盖</h2>
             <p className="mb-3 text-xs text-muted">

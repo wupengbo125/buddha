@@ -1,32 +1,40 @@
 'use client';
 
-// 从 v1 HomeClient 抽出的念佛计数逻辑（原样保留）：
-// 即时 +1、满 5 推远端、随机 event_id 幂等、尾数 30s / 离开页面兜底补推、跨零点当日归零总数不变。
-// 去掉了 device_id、增删改、设置写入（这些归其它页面）；念佛页只读设置。
+// 念佛计数逻辑 v6：点一次即乐观 +1 并立即 POST 一次，服务端原子累加为唯一权威。
+// 计数改每次上传：不再有攒批 / pending 批次 / localStorage 对账 / 兜底定时器整套状态机。
+// 失败请求进内存重试队列，沿用同一 event_id 幂等重试；跨零点用轻量零点定时器重拉列表刷新显示。
+// 音效只由「设置页全局总开关 × 每计数器 sound_enabled」两级决定，任何异常都不阻塞计数。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import {
-  confirmFlushed,
-  flushPayloads,
-  needsFlush,
-  newEventId,
-  rollover,
+  applyServerTotals,
+  createState,
+  stateFromCounter,
   tap,
   type CounterState,
+  type TapRequest,
 } from '@/lib/counter-store';
+import { RetryQueue } from '@/lib/storage';
 import { dateKey, msUntilNextDay } from '@/lib/time';
 import {
   defaultSettings,
   effectiveCaptionMs,
-  FLUSH_INTERVAL_MS,
   loadCaptionOverrides,
   loadSettings,
   type Settings,
 } from '@/lib/settings';
-import { loadStates, reconcileStates, saveStates } from '@/lib/storage';
+import {
+  playWoodFish,
+  prefersReducedMotion,
+  shouldPlaySound,
+  shouldVibrate,
+  vibrateShort,
+} from '@/lib/sound';
 import type { Counter } from '@/lib/types';
 import type { CaptionData } from './Caption';
+
+const RETRY_DELAY_MS = 2000;
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : '操作失败';
@@ -43,140 +51,133 @@ export function useChant() {
   const statesRef = useRef<Record<string, CounterState>>({});
   const settingsRef = useRef<Settings>(defaultSettings());
   const overridesRef = useRef<Record<string, number>>({});
-  const todayRef = useRef('');
-  const inFlight = useRef<Record<string, boolean>>({});
+  const retryRef = useRef(new RetryQueue());
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionToken = useRef(0);
 
-  const commitCounters = useCallback((next: Counter[]) => {
+  function commitCounters(next: Counter[]) {
     countersRef.current = next;
     setCounters(next);
-  }, []);
+  }
 
-  const commitStates = useCallback((next: Record<string, CounterState>) => {
+  function commitStates(next: Record<string, CounterState>) {
     statesRef.current = next;
     setStates(next);
-    saveStates(next);
-  }, []);
+  }
 
-  // 推送单个计数器的所有 pending 批次：每批带自己的 date 与随机 event_id。
-  // 重试沿用同一 event_id（服务端按 event_id 幂等），只有服务端明确确认本批次才清对应 pending。
-  const flush = useCallback(
-    async (counterId: string) => {
-      const state = statesRef.current[counterId];
-      if (!state || !needsFlush(state) || inFlight.current[counterId]) return;
-      inFlight.current[counterId] = true;
-      const batches = flushPayloads(state);
-      try {
-        for (const batch of batches) {
-          const res = await api.reportTap(counterId, {
-            event_id: batch.eventId,
-            delta: batch.delta,
-            date: batch.date,
-          });
-          // 仅当响应确系本批次（新应用 applied=true，或同 id 重发 applied=false）才清 pending；
-          // 否则保守保留，绝不无条件清，避免吞计数。
-          if (res.event_id !== batch.eventId) continue;
-          const current = statesRef.current[counterId];
-          if (!current) break;
-          commitStates({
-            ...statesRef.current,
-            [counterId]: confirmFlushed(current, [batch], newEventId, res.total),
-          });
-        }
-      } catch {
-        // 失败：pending 与原 event_id 原样保留，交给兜底定时器 / 下次进入页面重试（同 id 重发幂等）
-      } finally {
-        inFlight.current[counterId] = false;
-      }
-    },
-    [commitStates],
-  );
+  // 服务端响应校正显示（函数式更新，避免闭包拿到旧 state）。
+  function reconcile(counterId: string, res: { total: number; today: number; today_date: string }) {
+    setStates((prev) => {
+      const cur = prev[counterId] ?? createState(res.today_date);
+      const next = { ...prev, [counterId]: applyServerTotals(cur, res) };
+      statesRef.current = next;
+      return next;
+    });
+  }
 
-  // 初始化：设置 / 计数器列表；对齐本地状态；补推上次遗留的 pending
+  // 短退避定时重试：失败请求沿用同一 event_id 重发（幂等，不重复累加）。
+  function scheduleRetry() {
+    if (retryTimer.current) return;
+    retryTimer.current = setTimeout(() => {
+      retryTimer.current = null;
+      drainRetry();
+    }, RETRY_DELAY_MS);
+  }
+
+  function drainRetry() {
+    const items = retryRef.current.drain();
+    for (const it of items) void send(it.counterId, { eventId: it.eventId, date: it.date });
+  }
+
+  async function send(counterId: string, req: TapRequest): Promise<void> {
+    try {
+      const res = await api.reportTap(counterId, { event_id: req.eventId, date: req.date });
+      reconcile(counterId, res);
+    } catch {
+      retryRef.current.add(counterId, req);
+      scheduleRetry();
+    }
+  }
+
+  // 轻量重拉列表：服务端为唯一权威。resetDisplay=true 时按服务端值重建计数显示
+  // （初始化 / 跨零点归零），false 时只同步音效开关等元数据、不动计数显示。
+  // 不引入 pending / localStorage 对账状态机。
+  async function refreshFromServer(resetDisplay: boolean): Promise<void> {
+    const { counters: list } = await api.listCounters();
+    commitCounters(list);
+    if (resetDisplay) {
+      const next: Record<string, CounterState> = {};
+      for (const c of list) next[c.id] = stateFromCounter(c);
+      commitStates(next);
+    }
+  }
+
+  // 初始化：设置 / 计数器列表（服务端权威）。不再有 localStorage 对账 / 补推遗留 pending。
   useEffect(() => {
     const s = loadSettings();
     settingsRef.current = s;
     overridesRef.current = loadCaptionOverrides();
-    const today = dateKey(new Date(), s.timeZone);
-    todayRef.current = today;
+    void refreshFromServer(true)
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    (async () => {
-      try {
-        const { counters: list } = await api.listCounters();
-        const merged = reconcileStates(list, loadStates(), today);
-        commitCounters(list);
-        commitStates(merged);
-        for (const id of Object.keys(merged)) {
-          if (needsFlush(merged[id])) void flush(id);
-        }
-      } catch (e) {
-        setError(errorMessage(e));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [commitCounters, commitStates, flush]);
-
-  // 兜底：30s 补推 + 复核跨零点、零点 setTimeout、离开页面补推（localStorage 兜底不丢）
+  // 重试时机：页面回前台（visibilitychange）+ 跨零点轻量刷新。
+  // 重试只靠内存队列 + 短退避定时器，无任何本地持久化对账。
   useEffect(() => {
-    const flushAll = () => {
-      for (const id of Object.keys(statesRef.current)) void flush(id);
-    };
-    const rolloverIfNeeded = () => {
-      const d = dateKey(new Date(), settingsRef.current.timeZone);
-      if (d === todayRef.current) return;
-      todayRef.current = d;
-      const next: Record<string, CounterState> = {};
-      for (const [id, st] of Object.entries(statesRef.current)) next[id] = rollover(st, d);
-      commitStates(next);
-    };
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') flushAll();
+      if (document.visibilityState !== 'visible') return;
+      void refreshFromServer(false).catch(() => undefined); // 同步各计数器音效开关
+      drainRetry();
     };
-    const onBeforeUnload = () => flushAll();
-
-    const interval = setInterval(() => {
-      rolloverIfNeeded();
-      flushAll();
-    }, FLUSH_INTERVAL_MS);
+    document.addEventListener('visibilitychange', onVisibility);
 
     let midnightTimer: ReturnType<typeof setTimeout>;
     const armMidnight = () => {
       midnightTimer = setTimeout(() => {
-        rolloverIfNeeded();
+        void refreshFromServer(true).catch(() => undefined); // 跨零点当日归零显示
         armMidnight();
       }, msUntilNextDay(new Date(), settingsRef.current.timeZone));
     };
     armMidnight();
 
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
-      clearInterval(interval);
-      clearTimeout(midnightTimer);
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('beforeunload', onBeforeUnload);
+      clearTimeout(midnightTimer);
+      if (retryTimer.current) clearTimeout(retryTimer.current);
     };
-  }, [flush, commitStates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleTap = useCallback(
-    (counter: Counter) => {
-      const state = statesRef.current[counter.id];
-      if (!state) return;
-      const date = dateKey(new Date(), settingsRef.current.timeZone);
-      todayRef.current = date;
-      const result = tap(state, date);
-      commitStates({ ...statesRef.current, [counter.id]: result.state });
-      captionToken.current += 1;
-      setCaption({
-        text: counter.caption || counter.name,
-        durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
-        token: captionToken.current,
-      });
-      if (result.push) void flush(counter.id);
-    },
-    [commitStates, flush],
-  );
+  function handleTap(counter: Counter) {
+    const date = dateKey(new Date(), settingsRef.current.timeZone);
+
+    // 乐观 +1 立即刷新 UI（不等待网络），每次点击生成一个全新 event_id 的上报请求。
+    const cur = statesRef.current[counter.id] ?? createState(date);
+    const { state, request } = tap(cur, date);
+    commitStates({ ...statesRef.current, [counter.id]: state });
+
+    // 字幕：保持现有行为（文案取计数器字幕，为空取佛号名；时长全局 + 每项目覆盖）。
+    captionToken.current += 1;
+    setCaption({
+      text: counter.caption || counter.name,
+      durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
+      token: captionToken.current,
+    });
+
+    // 音效 / 震动：两级开关 + prefers-reduced-motion（只抑制震动，不影响音效）。
+    // playWoodFish / vibrateShort 内部 try/catch 静默，绝不阻塞计数。
+    const globalOn = settingsRef.current.soundEnabled;
+    const counterOn = counter.sound_enabled === 1;
+    const reduced = prefersReducedMotion();
+    if (shouldPlaySound(globalOn, counterOn, reduced)) playWoodFish();
+    if (shouldVibrate(globalOn, counterOn, reduced)) vibrateShort(reduced);
+
+    // 每次点击立即一次 POST（delta=1）；顺带触发一次失败队列重试。
+    void send(counter.id, request);
+    if (retryRef.current.size > 0) drainRetry();
+  }
 
   return { counters, states, caption, loading, error, handleTap };
 }

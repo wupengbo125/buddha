@@ -6,7 +6,7 @@ import { requireSession, jsonError, readJson } from '@/lib/http';
 import type { Counter } from '@/lib/types';
 
 const SELECT_COUNTER =
-  'SELECT id, device_id, name, caption, total, today, today_date, created_at, updated_at FROM counters';
+  'SELECT id, device_id, name, caption, total, today, today_date, sound_enabled, created_at, updated_at FROM counters';
 
 type Ctx = { params: { id: string } };
 
@@ -19,8 +19,11 @@ const PatchBody = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
     caption: z.string().max(200).optional(),
+    sound_enabled: z.union([z.literal(0), z.literal(1)]).optional(),
   })
-  .refine((d) => d.name !== undefined || d.caption !== undefined, { message: '无可更新字段' });
+  .refine((d) => d.name !== undefined || d.caption !== undefined || d.sound_enabled !== undefined, {
+    message: '无可更新字段',
+  });
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (!(await requireSession(req))) return jsonError('未登录', 401);
@@ -40,6 +43,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (parsed.data.caption !== undefined) {
       sets.push('caption = ?');
       vals.push(parsed.data.caption);
+    }
+    if (parsed.data.sound_enabled !== undefined) {
+      sets.push('sound_enabled = ?');
+      vals.push(parsed.data.sound_enabled);
     }
     sets.push('updated_at = ?');
     vals.push(new Date().toISOString(), params.id);

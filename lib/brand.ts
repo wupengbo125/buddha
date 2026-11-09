@@ -6,7 +6,7 @@ export const siteName = '念佛器';
 export const siteSubtitle = '念佛计数';
 export const siteUrl = 'https://buddha.wupengbo125.workers.dev';
 
-// localStorage 命名空间前缀：集中在此，settings/storage 两处 key 均由它派生。
+// localStorage 命名空间前缀：集中在此，settings 的 key 由它派生。
 // 换品牌时只需改本文件（与 siteUrl 一起），业务代码不动。
 export const storageNamespace = 'buddha';
 

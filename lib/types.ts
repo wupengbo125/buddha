@@ -8,6 +8,7 @@ export interface Counter {
   total: number;
   today: number;
   today_date: string;
+  sound_enabled: number; // 每项目独立音效开关：1 开 / 0 关，存 D1 跟账号走
   created_at: string;
   updated_at: string;
 }

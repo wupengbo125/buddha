@@ -3,13 +3,18 @@
 
 import type { D1Database, D1PreparedStatement, D1Result, R2BucketLike, R2Object } from './db';
 
-// DDL 单一来源 = migrations/0001_init.sql（wrangler 迁移与本地兜底共用），改表只改那一处。
+// DDL 单一来源 = migrations/*.sql（wrangler 迁移与本地兜底共用）。
+// 按文件名顺序读取全部迁移拼接，新增表/列只需加新迁移文件，本地内存 D1 自动跟上。
 // 用 eval('require') 动态取 node 内置模块，避免被 OpenNext 静态打进 Worker bundle。
-function readSchemaSql(): string {
+export function readSchemaSql(): string {
   const nodeRequire: (id: string) => any = eval('require');
   const fs = nodeRequire('node:fs');
   const path = nodeRequire('node:path');
-  return fs.readFileSync(path.resolve(process.cwd(), 'migrations', '0001_init.sql'), 'utf8') as string;
+  const dir = path.resolve(process.cwd(), 'migrations');
+  const files = (fs.readdirSync(dir) as string[])
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  return files.map((f) => fs.readFileSync(path.join(dir, f), 'utf8') as string).join('\n');
 }
 
 class SqlitePrepared implements D1PreparedStatement {

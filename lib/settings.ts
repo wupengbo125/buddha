@@ -1,4 +1,4 @@
-// 字幕时长 / 时区等可持久化设置的常量与 localStorage 读写
+// 字幕时长 / 时区 / 点击音效全局总开关等可持久化设置的常量与 localStorage 读写
 
 import { storageNamespace } from './brand';
 
@@ -6,11 +6,11 @@ export const CAPTION_MIN_MS = 200;
 export const CAPTION_MAX_MS = 10000;
 export const CAPTION_DEFAULT_MS = 1200;
 export const DEFAULT_TIMEZONE = 'Asia/Shanghai';
-export const FLUSH_INTERVAL_MS = 30 * 1000;
 
 export interface Settings {
   captionMs: number;
   timeZone: string;
+  soundEnabled: boolean; // 全局总开关：false 时任何计数器都不响（一键全关）
 }
 
 const SETTINGS_KEY = `${storageNamespace}:settings`;
@@ -21,7 +21,7 @@ export function clampCaptionMs(value: number): number {
 }
 
 export function defaultSettings(): Settings {
-  return { captionMs: CAPTION_DEFAULT_MS, timeZone: DEFAULT_TIMEZONE };
+  return { captionMs: CAPTION_DEFAULT_MS, timeZone: DEFAULT_TIMEZONE, soundEnabled: true };
 }
 
 export function loadSettings(): Settings {
@@ -33,6 +33,8 @@ export function loadSettings(): Settings {
     return {
       captionMs: clampCaptionMs(Number(parsed.captionMs)),
       timeZone: typeof parsed.timeZone === 'string' && parsed.timeZone ? parsed.timeZone : DEFAULT_TIMEZONE,
+      // 老数据缺字段时默认开；仅显式 false 才关。
+      soundEnabled: parsed.soundEnabled !== false,
     };
   } catch {
     return defaultSettings();
