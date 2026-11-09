@@ -59,15 +59,19 @@ export function ChantClient() {
       ) : (
         <>
           <div className="chant-center">
-            <h1 className="chant-title">{selected.name}</h1>
             <div className="chant-caption" aria-live="off">
               {caption && <Caption key={caption.token} data={caption} />}
             </div>
             <div className="fish-stage"><WoodenFish onTap={() => handleTap(selected)} /></div>
-            <p className="count-label">今日念诵</p>
-            <p className="daily-count" aria-label={`今日 ${state?.today ?? 0} 声`}>{(state?.today ?? 0).toLocaleString()}</p>
+            <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
+              <span className="count-row-label">今日</span>
+              <span className="count-row-num count-row-today">{(state?.today ?? 0).toLocaleString()}</span>
+              <span className="count-row-sep">/</span>
+              <span className="count-row-label">累计</span>
+              <span className="count-row-num count-row-total">{(state?.total ?? 0).toLocaleString()}</span>
+              <span className="count-row-label">声</span>
+            </div>
           </div>
-          <div className="total-count"><span>累计念诵</span><strong>{(state?.total ?? 0).toLocaleString()}</strong><span>声</span></div>
         </>
       )}
       {error && <p className="error-message" role="alert">{error}</p>}
