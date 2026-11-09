@@ -2,16 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------ *
+ * 颜色令牌：浅 / 深两套，均用「空格分隔 RGB 通道」表示，配合 tailwind 的
+ * rgb(var(--c-x) / <alpha-value>) 支持 /透明度修饰符。line 本身带 alpha，
+ * 存为完整 rgba() 色值。
+ * ------------------------------------------------------------------ */
+:root {
+  color-scheme: light dark;
+
+  --c-bg: 246 244 236;          /* #f6f4ec 宣纸底 */
+  --c-surface: 251 249 242;     /* #fbf9f2 */
+  --c-ink: 58 51 39;            /* #3a3327 墨色字 */
+  --c-ink-soft: 107 97 81;      /* #6b6151 */
+  --c-muted: 140 130 114;       /* #8c8272 */
+  --c-line: rgba(58, 51, 39, .10);
+  --c-accent: 138 90 59;        /* #8a5a3b 檀木 */
+  --c-accent-deep: 111 70 48;   /* #6f4630 */
+  --c-accent-soft: 236 224 205; /* #ece0cd */
+  --c-gold: 176 141 79;         /* #b08d4f */
+  --c-danger: 180 71 47;        /* #b4472f */
+}
+
+/* 深色调色板：深底浅字、檀木强调色提亮以保证对比度。
+   跟随系统（媒体查询）与显式 dark 两处各写一份，显式优先级更高。 */
+/* 跟随系统：未显式设 data-theme 时由媒体查询切换深色 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --c-bg: 26 24 20;
+    --c-surface: 36 33 27;
+    --c-ink: 239 233 220;
+    --c-ink-soft: 195 185 165;
+    --c-muted: 154 145 126;
+    --c-line: rgba(239, 233, 220, .14);
+    --c-accent: 192 138 94;
+    --c-accent-deep: 169 113 72;
+    --c-accent-soft: 58 46 34;
+    --c-gold: 216 180 95;
+    --c-danger: 224 112 85;
+  }
+}
+
+/* 显式覆盖，优先级高于系统媒体查询（:root:not([data-theme]) 不再匹配）。
+   手动浅/深色不依赖 prefers-color-scheme，iOS PWA standalone 里也生效。 */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --c-bg: 246 244 236;
+  --c-surface: 251 249 242;
+  --c-ink: 58 51 39;
+  --c-ink-soft: 107 97 81;
+  --c-muted: 140 130 114;
+  --c-line: rgba(58, 51, 39, .10);
+  --c-accent: 138 90 59;
+  --c-accent-deep: 111 70 48;
+  --c-accent-soft: 236 224 205;
+  --c-gold: 176 141 79;
+  --c-danger: 180 71 47;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: 26 24 20;
+  --c-surface: 36 33 27;
+  --c-ink: 239 233 220;
+  --c-ink-soft: 195 185 165;
+  --c-muted: 154 145 126;
+  --c-line: rgba(239, 233, 220, .14);
+  --c-accent: 192 138 94;
+  --c-accent-deep: 169 113 72;
+  --c-accent-soft: 58 46 34;
+  --c-gold: 216 180 95;
+  --c-danger: 224 112 85;
+}
+
 @layer base {
   html,
   body {
     height: 100%;
   }
   body {
-    background-color: #f6f4ec;
-    color: #3a3327;
+    background-color: rgb(var(--c-bg));
+    color: rgb(var(--c-ink));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* iOS PWA 安全区：内容避开刘海 / home indicator；桌面 env() 为 0，不影响布局 */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

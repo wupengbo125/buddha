@@ -28,6 +28,12 @@
 
 五个受保护页面共用一套导航（移动端底部 / 桌面顶部：念佛 / 添加 / 设置），登录页无导航。念佛页视觉取 `one-awesome-design/reference/apple-design.md` 的原则（极低密度、大留白、UI 退让、单一强调色、字阶克制、44px 触控、`scale(0.95)` 按压、8px 间距），换成禅意配色：宣纸底 `#f6f4ec`、墨色字 `#3a3327`、檀木/赭石 `#8a5a3b` 为唯一强调色、细发丝线、金色极少量点缀，无 Apple 蓝、无渐变背景、无卡片投影。
 
+## 深色模式 / 添加到主屏幕（PWA）
+
+- 颜色全走 CSS 变量（浅/深两套）+ `color-scheme`，默认跟随系统；设置页「外观」可手动切「跟随系统 / 浅色 / 深色」，存 `localStorage`，启动时内联脚本在 hydrate 前设好 `data-theme`，刷新不白闪。
+- 手动浅/深色不依赖 `prefers-color-scheme`，iOS 主屏幕 Web App（standalone）里也生效；`viewport.themeColor` 输出深浅两个 `<meta name="theme-color">`，状态栏 / 启动画面配色随深浅走。
+- iPhone：Safari 打开 → 分享 →「添加到主屏幕」即以 standalone 启动，图标取 `app/icon.png` / `app/apple-icon.png`，配置由 `app/manifest.ts` 生成的 `/manifest.webmanifest` 提供。
+
 ## 计数逻辑（v1 保留）
 
 - 点按即时本地 +1（`localStorage` 主存，离线可用）；累计到 5 的倍数推一次远端，不足 5 的尾数由兜底定时器 / 离开页面 / 下次进入页面补推。

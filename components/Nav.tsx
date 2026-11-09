@@ -19,7 +19,7 @@ export function Nav() {
   };
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 backdrop-blur md:static md:border-b md:border-t-0 md:bg-transparent">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:border-b md:border-t-0 md:bg-transparent">
       <ul className="mx-auto flex w-full max-w-md md:justify-center md:gap-3 md:py-2">
         {items.map((it) => {
           const on = active(it.href);

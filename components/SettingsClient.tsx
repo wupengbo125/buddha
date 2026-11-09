@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { domainNote, siteUrl } from '@/lib/brand';
 import { api } from '@/lib/api';
+import { applyTheme, readTheme, resolveTheme, saveTheme, type Theme } from '@/lib/theme';
 import {
   CAPTION_MIN_MS,
   CAPTION_MAX_MS,
@@ -15,14 +16,46 @@ import {
   type Settings,
 } from '@/lib/settings';
 
-/** 设置页：字幕淡出时长、时区、域名说明、退出登录。不添加佛号、不计数。 */
+/** 设置页：字幕淡出时长、时区、外观、域名说明、退出登录。不添加佛号、不计数。 */
 export function SettingsClient() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>(defaultSettings());
+  const [theme, setTheme] = useState<Theme>('system');
+  const [systemDark, setSystemDark] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setSettings(loadSettings());
+    const t = readTheme();
+    applyTheme(t);
+    setTheme(t);
+    setSystemDark(resolveTheme('system') === 'dark');
+
+    // 系统主题切换 / standalone 回到前台时重新应用：显式值不依赖 prefers-color-scheme，
+    // system 模式下强制一次 reflow，补正 iOS PWA 里冻结的媒体查询。
+    const sync = () => {
+      const cur = readTheme();
+      applyTheme(cur);
+      void document.documentElement.offsetHeight;
+      setTheme(cur);
+      setSystemDark(resolveTheme('system') === 'dark');
+    };
+    const mq =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null;
+    if (mq) {
+      if (typeof mq.addEventListener === 'function') mq.addEventListener('change', sync);
+      else mq.addListener(sync); // 旧 Safari
+    }
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      if (mq) {
+        if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', sync);
+        else mq.removeListener(sync);
+      }
+      document.removeEventListener('visibilitychange', sync);
+    };
   }, []);
 
   const patch = (p: Partial<Settings>) => {
@@ -32,6 +65,13 @@ export function SettingsClient() {
     };
     setSettings(next);
     saveSettings(next);
+  };
+
+  const changeTheme = (t: Theme) => {
+    saveTheme(t);
+    applyTheme(t);
+    setTheme(t);
+    setSystemDark(resolveTheme('system') === 'dark');
   };
 
   const logout = async () => {
@@ -52,6 +92,30 @@ export function SettingsClient() {
       </header>
 
       <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="flex flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-ink-soft">外观</span>
+            {theme === 'system' && (
+              <span className="text-xs text-muted">跟随系统 · 当前{systemDark ? '深色' : '浅色'}</span>
+            )}
+          </div>
+          <div className="inline-flex rounded-full border border-line bg-bg p-1" role="group" aria-label="外观模式">
+            {(['system', 'light', 'dark'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => changeTheme(t)}
+                aria-pressed={theme === t}
+                className={[
+                  'tap-press rounded-full px-4 py-1.5 text-sm transition-colors',
+                  theme === t ? 'bg-accent-soft font-semibold text-accent-deep' : 'text-muted hover:text-ink-soft',
+                ].join(' ')}
+              >
+                {t === 'system' ? '跟随系统' : t === 'light' ? '浅色' : '深色'}
+              </button>
+            ))}
+          </div>
+        </div>
         <label className="flex flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
           <span className="text-ink-soft">字幕淡出时长（毫秒，{CAPTION_MIN_MS}–{CAPTION_MAX_MS}）</span>
           <input
