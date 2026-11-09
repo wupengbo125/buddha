@@ -1,19 +1,9 @@
-// 点按反馈：Web Audio 合成短木鱼声（无资源文件）+ 两级开关判定 + Android 震动渐进增强。
-// 音效只由「全局总开关 × 每计数器 sound_enabled」决定；prefers-reduced-motion 只抑制
-// 视觉涟漪 / 震动这类 motion 反馈，不影响音效（音效非 motion）。
-
-/**
- * 两级开关判定：总开关 off → 全静音；总开关 on → 看各计数器自己的开关。
- * reducedMotion 不参与音效结果（音效非 motion 反馈），仅为便于集中判定而保留参数。
- */
-export function shouldPlaySound(globalEnabled: boolean, counterEnabled: boolean, reducedMotion = false): boolean {
-  void reducedMotion;
-  return globalEnabled && counterEnabled;
+export function shouldPlaySound(enabled: boolean): boolean {
+  return enabled;
 }
 
-/** 震动是 motion 类反馈：两级开关都开且未要求减少动态效果时才触发。 */
-export function shouldVibrate(globalEnabled: boolean, counterEnabled: boolean, reducedMotion: boolean): boolean {
-  return shouldPlaySound(globalEnabled, counterEnabled) && !reducedMotion;
+export function shouldVibrate(enabled: boolean, reducedMotion: boolean): boolean {
+  return enabled && !reducedMotion;
 }
 
 /** 读取 prefers-reduced-motion；node 测试环境 / 不支持时返回 false。 */

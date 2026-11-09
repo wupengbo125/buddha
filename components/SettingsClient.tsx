@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
-import { domainNote, siteUrl } from '@/lib/brand';
 import { api } from '@/lib/api';
 import { applyTheme, readTheme, resolveTheme, saveTheme, type Theme } from '@/lib/theme';
 import {
@@ -16,16 +15,18 @@ import {
   type Settings,
 } from '@/lib/settings';
 
-/** 设置页：点击音效全局总开关、字幕淡出时长、时区、外观、域名说明、退出登录。 */
 export function SettingsClient() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   const [theme, setTheme] = useState<Theme>('system');
   const [systemDark, setSystemDark] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [timeZoneInput, setTimeZoneInput] = useState('Asia/Shanghai');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setSettings(loadSettings());
+    setTimeZoneInput(loadSettings().timeZone);
     const t = readTheme();
     applyTheme(t);
     setTheme(t);
@@ -86,100 +87,66 @@ export function SettingsClient() {
     router.refresh();
   };
 
+  const saveTimeZone = () => {
+    try {
+      new Intl.DateTimeFormat('zh-CN', { timeZone: timeZoneInput.trim() });
+      patch({ timeZone: timeZoneInput.trim() });
+      setError('');
+    } catch {
+      setError('请输入有效时区，例如 Asia/Shanghai');
+    }
+  };
+
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-6 md:pb-12">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-wide text-ink">设置</h1>
+    <main className="page">
+      <header className="page-header">
+        <div><p className="eyebrow">偏好与账号</p><h1 className="page-title">设置</h1></div>
       </header>
 
-      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-        <div className="flex items-center justify-between gap-3 px-4 py-4 text-sm">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-ink-soft">点击音效</span>
-            <span className="text-xs text-muted">一键全关；开启后每个佛号可单独设置</span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings.soundEnabled}
-            aria-label="点击音效全局总开关"
-            onClick={() => patch({ soundEnabled: !settings.soundEnabled })}
-            className={`tap-press relative h-7 w-12 shrink-0 rounded-full border border-line transition-colors ${
-              settings.soundEnabled ? 'bg-accent' : 'bg-line'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
-                settings.soundEnabled ? 'left-[22px]' : 'left-0.5'
-              }`}
-            />
-          </button>
-        </div>
-        <div className="flex flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-ink-soft">外观</span>
-            {theme === 'system' && (
-              <span className="text-xs text-muted">跟随系统 · 当前{systemDark ? '深色' : '浅色'}</span>
-            )}
-          </div>
-          <div className="inline-flex rounded-full border border-line bg-bg p-1" role="group" aria-label="外观模式">
+      <section className="section">
+        <h2 className="section-title">念诵</h2>
+        <label className="block py-4">
+          <span className="mb-4 flex justify-between text-sm"><span>字幕停留</span><span className="tabular-nums text-accent">{settings.captionMs / 1000} 秒</span></span>
+          <input type="range" min={CAPTION_MIN_MS} max={CAPTION_MAX_MS} step={100} value={settings.captionMs}
+            onChange={(event) => patch({ captionMs: Number(event.target.value) })} className="h-8 w-full accent-[rgb(var(--c-accent))]" />
+        </label>
+        <label className="mt-3 block">
+          <span className="field-label">每日计数时区</span>
+          <input type="text" value={timeZoneInput} onChange={(event) => setTimeZoneInput(event.target.value)} onBlur={saveTimeZone}
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} list="timezone-list" className="field" />
+          <datalist id="timezone-list"><option value="Asia/Shanghai" /><option value="Asia/Tokyo" /><option value="UTC" /><option value="America/Los_Angeles" /></datalist>
+        </label>
+        {error && <p className="error-message" role="alert">{error}</p>}
+      </section>
+
+      <section className="section">
+        <h2 className="section-title">外观</h2>
+          <div className="segmented" role="group" aria-label="外观模式">
             {(['system', 'light', 'dark'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => changeTheme(t)}
                 aria-pressed={theme === t}
-                className={[
-                  'tap-press rounded-full px-4 py-1.5 text-sm transition-colors',
-                  theme === t ? 'bg-accent-soft font-semibold text-accent-deep' : 'text-muted hover:text-ink-soft',
-                ].join(' ')}
               >
                 {t === 'system' ? '跟随系统' : t === 'light' ? '浅色' : '深色'}
               </button>
             ))}
           </div>
-        </div>
-        <label className="flex flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-ink-soft">字幕淡出时长（毫秒，{CAPTION_MIN_MS}–{CAPTION_MAX_MS}）</span>
-          <input
-            type="number"
-            min={CAPTION_MIN_MS}
-            max={CAPTION_MAX_MS}
-            step={100}
-            value={settings.captionMs}
-            onChange={(e) => patch({ captionMs: Number(e.target.value) })}
-            className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-accent sm:w-40"
-          />
-        </label>
-        <label className="flex flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-ink-soft">时区（每日零点归零用）</span>
-          <input
-            type="text"
-            value={settings.timeZone}
-            onChange={(e) => patch({ timeZone: e.target.value })}
-            list="timezone-list"
-            className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-accent sm:w-56"
-          />
-          <datalist id="timezone-list">
-            <option value="Asia/Shanghai" />
-            <option value="Asia/Tokyo" />
-            <option value="UTC" />
-            <option value="America/Los_Angeles" />
-          </datalist>
-        </label>
-      </div>
+          {theme === 'system' && <p className="mt-3 text-xs text-muted">当前为{systemDark ? '深色' : '浅色'}</p>}
+      </section>
 
-      <p className="mt-4 text-xs leading-relaxed text-muted">{domainNote}</p>
-      <p className="mt-1 text-xs text-muted">访问地址：{siteUrl}</p>
-
+      <section className="section">
+      <h2 className="section-title">账号</h2>
       <button
         type="button"
         onClick={() => void logout()}
         disabled={busy}
-        className="tap-press mt-8 flex w-full items-center justify-center gap-2 rounded-full border border-line bg-surface py-3 text-base font-semibold text-ink disabled:opacity-50"
+        className="secondary-button w-full"
       >
         <LogOut size={18} /> 退出登录
       </button>
+      </section>
     </main>
   );
 }

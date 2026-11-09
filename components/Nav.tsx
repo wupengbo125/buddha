@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { CircleDot, Library, SlidersHorizontal } from 'lucide-react';
 
 const items = [
-  { href: '/', label: '念佛' },
-  { href: '/counters', label: '添加' },
-  { href: '/settings', label: '设置' },
+  { href: '/', label: '念佛', icon: CircleDot },
+  { href: '/counters', label: '佛号', icon: Library },
+  { href: '/settings', label: '设置', icon: SlidersHorizontal },
 ];
 
-/** 五个受保护页面共用：移动端底部 / 桌面顶部。登录页不渲染本组件。 */
 export function Nav() {
   const pathname = usePathname();
   const active = (href: string) => {
@@ -19,25 +19,19 @@ export function Nav() {
   };
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:border-b md:border-t-0 md:bg-transparent">
-      <ul className="mx-auto flex w-full max-w-md md:justify-center md:gap-3 md:py-2">
+    <nav className="bottom-nav" aria-label="主导航">
+      <ul className="flex w-full">
         {items.map((it) => {
           const on = active(it.href);
           return (
-            <li key={it.href} className="flex-1 md:flex-none">
+            <li key={it.href} className="flex-1">
               <Link
                 href={it.href}
                 aria-current={on ? 'page' : undefined}
-                className={`tap-press flex h-14 items-center justify-center text-[15px] tracking-wide md:h-9 md:rounded-full md:px-8 ${
-                  on ? 'text-accent md:bg-accent-soft' : 'text-muted'
-                }`}
+                className={`nav-item ${on ? 'nav-item-active' : ''}`}
               >
-                <span className="relative">
-                  {it.label}
-                  {on && (
-                    <span className="absolute -bottom-2 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent md:hidden" />
-                  )}
-                </span>
+                <it.icon size={21} strokeWidth={on ? 2 : 1.6} />
+                <span>{it.label}</span>
               </Link>
             </li>
           );

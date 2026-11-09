@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 import { siteName, siteSubtitle } from '@/lib/brand';
 
 /** 登录页：只有账号 / 密码表单与错误提示，无导航、无计数数据。 */
@@ -38,14 +39,16 @@ export function LoginForm() {
   };
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center px-6">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-line bg-surface px-7 py-9">
-        <div className="mb-8 text-center">
-          <h1 className="text-[28px] font-semibold tracking-[0.12em] text-ink">{siteName}</h1>
-          <p className="mt-1 text-sm text-muted">{siteSubtitle} · 登录</p>
+    <main className="login-page">
+      <form onSubmit={submit} className="w-full">
+        <div className="mb-10 text-center">
+          <img src="/wooden-fish.png" alt="" className="login-art" />
+          <h1 className="page-title">{siteName}</h1>
+          <p className="mt-3 text-sm text-muted">{siteSubtitle}</p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <label className="block"><span className="field-label">账号</span>
           <input
             type="text"
             autoComplete="username"
@@ -53,8 +56,10 @@ export function LoginForm() {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="账号"
             required
-            className="h-12 w-full rounded-xl border border-line bg-bg px-4 text-base text-ink outline-none focus:border-accent"
+            className="field"
           />
+          </label>
+          <label className="block"><span className="field-label">密码</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -62,18 +67,19 @@ export function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="密码"
             required
-            className="h-12 w-full rounded-xl border border-line bg-bg px-4 text-base text-ink outline-none focus:border-accent"
+            className="field"
           />
+          </label>
         </div>
 
-        {error && <p className="mt-4 text-center text-sm text-danger">{error}</p>}
+        {error && <p className="error-message" role="alert">{error}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          className="tap-press mt-7 h-12 w-full rounded-full bg-accent text-[17px] font-semibold text-white disabled:opacity-50"
+          className="primary-button mt-8 w-full"
         >
-          {loading ? '正在登录…' : '登 录'}
+          {loading ? '正在登录...' : '登录'}<ArrowRight size={18} />
         </button>
       </form>
     </main>

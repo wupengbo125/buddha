@@ -2,146 +2,115 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ------------------------------------------------------------------ *
- * 颜色令牌：浅 / 深两套，均用「空格分隔 RGB 通道」表示，配合 tailwind 的
- * rgb(var(--c-x) / <alpha-value>) 支持 /透明度修饰符。line 本身带 alpha，
- * 存为完整 rgba() 色值。
- * ------------------------------------------------------------------ */
-:root {
-  color-scheme: light dark;
-
-  --c-bg: 246 244 236;          /* #f6f4ec 宣纸底 */
-  --c-surface: 251 249 242;     /* #fbf9f2 */
-  --c-ink: 58 51 39;            /* #3a3327 墨色字 */
-  --c-ink-soft: 107 97 81;      /* #6b6151 */
-  --c-muted: 140 130 114;       /* #8c8272 */
-  --c-line: rgba(58, 51, 39, .10);
-  --c-accent: 138 90 59;        /* #8a5a3b 檀木 */
-  --c-accent-deep: 111 70 48;   /* #6f4630 */
-  --c-accent-soft: 236 224 205; /* #ece0cd */
-  --c-gold: 176 141 79;         /* #b08d4f */
-  --c-danger: 180 71 47;        /* #b4472f */
+:root, :root[data-theme='light'] {
+  color-scheme: light;
+  --c-bg: 250 251 249;
+  --c-surface: 239 244 240;
+  --c-ink: 30 43 38;
+  --c-ink-soft: 79 97 86;
+  --c-muted: 111 125 116;
+  --c-line: rgba(30, 60, 44, .14);
+  --c-accent: 37 96 73;
+  --c-accent-deep: 27 72 54;
+  --c-accent-soft: 225 238 228;
+  --c-gold: 157 128 65;
+  --c-danger: 180 65 56;
+  --outside: #e5e9e5;
 }
-
-/* 深色调色板：深底浅字、檀木强调色提亮以保证对比度。
-   跟随系统（媒体查询）与显式 dark 两处各写一份，显式优先级更高。 */
-/* 跟随系统：未显式设 data-theme 时由媒体查询切换深色 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --c-bg: 26 24 20;
-    --c-surface: 36 33 27;
-    --c-ink: 239 233 220;
-    --c-ink-soft: 195 185 165;
-    --c-muted: 154 145 126;
-    --c-line: rgba(239, 233, 220, .14);
-    --c-accent: 192 138 94;
-    --c-accent-deep: 169 113 72;
-    --c-accent-soft: 58 46 34;
-    --c-gold: 216 180 95;
-    --c-danger: 224 112 85;
+    --c-bg: 23 29 26;
+    --c-surface: 32 41 36;
+    --c-ink: 233 240 233;
+    --c-ink-soft: 177 195 181;
+    --c-muted: 143 163 149;
+    --c-line: rgba(203, 224, 207, .16);
+    --c-accent: 150 202 171;
+    --c-accent-deep: 185 223 198;
+    --c-accent-soft: 43 65 52;
+    --c-gold: 201 176 115;
+    --c-danger: 243 145 133;
+    --outside: #101612;
   }
 }
-
-/* 显式覆盖，优先级高于系统媒体查询（:root:not([data-theme]) 不再匹配）。
-   手动浅/深色不依赖 prefers-color-scheme，iOS PWA standalone 里也生效。 */
-:root[data-theme='light'] {
-  color-scheme: light;
-  --c-bg: 246 244 236;
-  --c-surface: 251 249 242;
-  --c-ink: 58 51 39;
-  --c-ink-soft: 107 97 81;
-  --c-muted: 140 130 114;
-  --c-line: rgba(58, 51, 39, .10);
-  --c-accent: 138 90 59;
-  --c-accent-deep: 111 70 48;
-  --c-accent-soft: 236 224 205;
-  --c-gold: 176 141 79;
-  --c-danger: 180 71 47;
-}
-
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --c-bg: 26 24 20;
-  --c-surface: 36 33 27;
-  --c-ink: 239 233 220;
-  --c-ink-soft: 195 185 165;
-  --c-muted: 154 145 126;
-  --c-line: rgba(239, 233, 220, .14);
-  --c-accent: 192 138 94;
-  --c-accent-deep: 169 113 72;
-  --c-accent-soft: 58 46 34;
-  --c-gold: 216 180 95;
-  --c-danger: 224 112 85;
+  --c-bg: 23 29 26;
+  --c-surface: 32 41 36;
+  --c-ink: 233 240 233;
+  --c-ink-soft: 177 195 181;
+  --c-muted: 143 163 149;
+  --c-line: rgba(203, 224, 207, .16);
+  --c-accent: 150 202 171;
+  --c-accent-deep: 185 223 198;
+  --c-accent-soft: 43 65 52;
+  --c-gold: 201 176 115;
+  --c-danger: 243 145 133;
+  --outside: #101612;
 }
-
 @layer base {
-  html,
-  body {
-    height: 100%;
-  }
-  body {
-    background-color: rgb(var(--c-bg));
-    color: rgb(var(--c-ink));
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    /* iOS PWA 安全区：内容避开刘海 / home indicator；桌面 env() 为 0，不影响布局 */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+  * { box-sizing: border-box; letter-spacing: 0; }
+  html { min-height: 100%; background: var(--outside); }
+  body { margin: 0 auto; max-width: 460px; min-height: 100dvh; background: rgb(var(--c-bg)); color: rgb(var(--c-ink)); -webkit-font-smoothing: antialiased; }
+  button, a, input, select { -webkit-tap-highlight-color: transparent; }
+  button, a { touch-action: manipulation; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 4px; }
+  input, select, textarea { font-size: 16px; }
+  h1, h2, p { overflow-wrap: anywhere; }
 }
-
-@layer utilities {
-  .caption-float {
-    animation: caption-float-in 180ms ease-out;
-  }
-  /* 系统级按压反馈：scale(0.95) */
-  .tap-press {
-    transition: transform 100ms ease, opacity 100ms ease;
-  }
-  .tap-press:active {
-    transform: scale(0.95);
-  }
-  /* 敲木鱼时的一圈淡出涟漪 */
-  .fish-ripple {
-    animation: fish-ripple-out 650ms ease-out forwards;
-  }
+@layer components {
+  .page { width: 100%; padding: calc(30px + env(safe-area-inset-top)) 24px calc(110px + env(safe-area-inset-bottom)); animation: arrive 300ms ease-out; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 32px; }
+  .page-title { font-family: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif; font-size: 30px; font-weight: 600; line-height: 1.3; }
+  .eyebrow { color: rgb(var(--c-muted)); font-size: 11px; margin-bottom: 6px; }
+  .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 40; width: min(100%, 460px); padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); background: rgb(var(--c-bg) / .96); backdrop-filter: blur(16px); border-top: 1px solid var(--c-line); }
+  .nav-item { display: flex; height: 54px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 11px; color: rgb(var(--c-muted)); }
+  .nav-item-active { color: rgb(var(--c-accent)); font-weight: 700; }
+  .icon-button { display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; color: rgb(var(--c-ink-soft)); }
+  .icon-button:hover { background: rgb(var(--c-surface)); }
+  .primary-button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 8px; background: rgb(var(--c-accent)); color: rgb(var(--c-bg)); font-size: 15px; font-weight: 600; }
+  .secondary-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--c-line); border-radius: 8px; color: rgb(var(--c-ink-soft)); font-size: 14px; }
+  .field { width: 100%; min-width: 0; min-height: 48px; border: 1px solid var(--c-line); border-radius: 8px; background: rgb(var(--c-surface)); padding: 12px 14px; color: rgb(var(--c-ink)); }
+  .field-label { display: block; font-size: 13px; color: rgb(var(--c-ink-soft)); margin-bottom: 10px; }
+  .section { border-top: 1px solid var(--c-line); padding: 24px 0; }
+  .section-title { margin-bottom: 20px; font-size: 13px; font-weight: 600; color: rgb(var(--c-muted)); }
+  .setting-row { display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 20px; }
+  .switch { display: inline-flex; flex-shrink: 0; width: 48px; height: 44px; align-items: center; }
+  .switch-track { display: block; width: 48px; height: 28px; padding: 3px; border-radius: 20px; background: rgb(var(--c-muted) / .3); transition: background 150ms; }
+  .switch[aria-checked='true'] .switch-track { background: rgb(var(--c-accent)); }
+  .switch-knob { display: block; width: 22px; height: 22px; border-radius: 50%; background: rgb(var(--c-bg)); transition: transform 150ms; }
+  .switch[aria-checked='true'] .switch-knob { transform: translateX(20px); }
+  .error-message { margin: 16px 0; color: rgb(var(--c-danger)); font-size: 13px; line-height: 1.7; }
+  .empty-state { padding: 72px 0; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; color: rgb(var(--c-muted)); }
+  .chant-page { display: flex; flex: 1; flex-direction: column; min-height: 100dvh; }
+  .chant-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .chant-brand { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 20px; }
+  .chant-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px 0 24px; }
+  .chant-title { max-width: 100%; text-align: center; font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 25px; font-weight: 600; color: rgb(var(--c-ink)); padding: 8px 0; }
+  .chant-caption { height: 60px; width: 100%; display: flex; align-items: center; justify-content: center; }
+  .chant-caption p { text-align: center; font-size: 14px; color: rgb(var(--c-accent)); max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .fish-stage { width: min(100%, 310px); aspect-ratio: 1; display: grid; place-items: center; position: relative; background: radial-gradient(ellipse at center, rgb(var(--c-accent-soft)) 0%, transparent 68%); }
+  .wooden-fish { position: relative; width: 90%; aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; touch-action: manipulation; user-select: none; transition: transform 100ms; }
+  .wooden-fish:active { transform: scale(.94) rotate(-2deg); }
+  .wooden-fish img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+  .daily-count { font-size: 58px; line-height: 1.15; font-weight: 400; font-variant-numeric: tabular-nums; color: rgb(var(--c-accent)); overflow-wrap: anywhere; max-width: 100%; }
+  .count-label { color: rgb(var(--c-muted)); font-size: 12px; margin: 8px 0; }
+  .total-count { display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid var(--c-line); padding-top: 20px; font-size: 12px; color: rgb(var(--c-muted)); }
+  .total-count strong { font-size: 18px; font-weight: 500; color: rgb(var(--c-ink-soft)); font-variant-numeric: tabular-nums; }
+  .counter-row { display: flex; align-items: center; gap: 12px; padding: 22px 0; border-bottom: 1px solid var(--c-line); }
+  .counter-number { width: 28px; flex-shrink: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: rgb(var(--c-muted)); }
+  .counter-name { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 21px; line-height: 1.5; }
+  .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: rgb(var(--c-surface)); border-radius: 8px; }
+  .segmented button { min-height: 42px; border-radius: 5px; color: rgb(var(--c-muted)); font-size: 13px; }
+  .segmented button[aria-pressed='true'] { background: rgb(var(--c-bg)); color: rgb(var(--c-accent)); box-shadow: 0 1px 4px #0000000a; }
+  .login-page { display: flex; min-height: 100dvh; flex-direction: column; justify-content: center; padding: 48px 32px; background: radial-gradient(ellipse at 50% 20%, rgb(var(--c-accent-soft) / .7), transparent 55%); }
+  .login-art { width: 160px; height: 160px; object-fit: contain; margin: 0 auto 24px; }
 }
-
-@keyframes caption-float-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes fish-ripple-out {
-  from {
-    transform: scale(0.82);
-    opacity: 0.65;
-  }
-  to {
-    transform: scale(1.32);
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .caption-float,
-  .fish-ripple {
-    animation: none;
-  }
-}
-
-/* iOS Safari：输入框字号 <16px 时聚焦会自动放大页面 */
-@media (max-width: 767px) {
-  input,
-  textarea,
-  select {
-    font-size: 16px !important;
-  }
-}
+.tap-press:active { transform: scale(.97); }
+.fish-ripple { position: absolute; inset: 5%; border: 1px solid rgb(var(--c-accent) / .35); border-radius: 50%; pointer-events: none; animation: ripple 600ms ease-out forwards; }
+.caption-float { animation: arrive 180ms ease-out; }
+@keyframes arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ripple { from { transform: scale(.8); opacity: .6; } to { transform: scale(1.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

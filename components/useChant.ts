@@ -3,7 +3,6 @@
 // 念佛计数逻辑 v6：点一次即乐观 +1 并立即 POST 一次，服务端原子累加为唯一权威。
 // 计数改每次上传：不再有攒批 / pending 批次 / localStorage 对账 / 兜底定时器整套状态机。
 // 失败请求进内存重试队列，沿用同一 event_id 幂等重试；跨零点用轻量零点定时器重拉列表刷新显示。
-// 音效只由「设置页全局总开关 × 每计数器 sound_enabled」两级决定，任何异常都不阻塞计数。
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -151,6 +150,7 @@ export function useChant() {
   }, []);
 
   function handleTap(counter: Counter) {
+    settingsRef.current = loadSettings();
     const date = dateKey(new Date(), settingsRef.current.timeZone);
 
     // 乐观 +1 立即刷新 UI（不等待网络），每次点击生成一个全新 event_id 的上报请求。
@@ -166,13 +166,11 @@ export function useChant() {
       token: captionToken.current,
     });
 
-    // 音效 / 震动：两级开关 + prefers-reduced-motion（只抑制震动，不影响音效）。
     // playWoodFish / vibrateShort 内部 try/catch 静默，绝不阻塞计数。
     const globalOn = settingsRef.current.soundEnabled;
-    const counterOn = counter.sound_enabled === 1;
     const reduced = prefersReducedMotion();
-    if (shouldPlaySound(globalOn, counterOn, reduced)) playWoodFish();
-    if (shouldVibrate(globalOn, counterOn, reduced)) vibrateShort(reduced);
+    if (shouldPlaySound(globalOn)) playWoodFish();
+    if (shouldVibrate(globalOn, reduced)) vibrateShort(reduced);
 
     // 每次点击立即一次 POST（delta=1）；顺带触发一次失败队列重试。
     void send(counter.id, request);

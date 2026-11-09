@@ -6,7 +6,7 @@ import { THEME_KEY } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: `${siteName} · ${siteSubtitle}`,
-  description: '个人念佛器：登录后敲木鱼计数，每满 5 声同步远端，每日零点当日归零、总数永久保留。',
+  description: '敲木鱼、念佛计数，每日记录，累计珍藏。',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: siteName },
   // app/icon.png / app/apple-icon.png / app/favicon.ico 由 Next 自动识别生成 link，这里不重复声明。
@@ -18,8 +18,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f4ec' },
-    { media: '(prefers-color-scheme: dark)', color: '#1a1814' },
+    { media: '(prefers-color-scheme: light)', color: '#fafbf9' },
+    { media: '(prefers-color-scheme: dark)', color: '#171d1a' },
   ],
 };
 

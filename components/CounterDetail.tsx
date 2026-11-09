@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ImagePlus } from 'lucide-react';
-import { siteName } from '@/lib/brand';
+import { ArrowLeft, ArrowUpRight, Check, ImagePlus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   CAPTION_DEFAULT_MS,
@@ -20,9 +20,13 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : '操作失败';
 }
 
-/** 详情页：该佛号的图片（上传/删除/回显）、单计数器字幕时长、独立音效开关。 */
 export function CounterDetail({ id }: { id: string }) {
+  const router = useRouter();
   const [counter, setCounter] = useState<Counter | null>(null);
+  const [name, setName] = useState('');
+  const [captionText, setCaptionText] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [images, setImages] = useState<ImageView[]>([]);
   const [captionMsInput, setCaptionMsInput] = useState('');
   const [globalMs, setGlobalMs] = useState(CAPTION_DEFAULT_MS);
@@ -38,7 +42,10 @@ export function CounterDetail({ id }: { id: string }) {
           api.listCounters(),
           api.listImages(id),
         ]);
-        setCounter(counters.find((c) => c.id === id) ?? null);
+        const found = counters.find((c) => c.id === id) ?? null;
+        setCounter(found);
+        setName(found?.name ?? '');
+        setCaptionText(found?.caption ?? '');
         setImages(imgs);
         setGlobalMs(loadSettings().captionMs);
         const override = loadCaptionOverrides()[id];
@@ -62,15 +69,35 @@ export function CounterDetail({ id }: { id: string }) {
     setCaptionMsInput(String(clamped));
   };
 
-  // 每个计数器独立音效开关：写 D1（PATCH），跟账号走、跨设备一致。
-  const toggleSound = async () => {
-    if (!counter) return;
-    const next = counter.sound_enabled === 1 ? 0 : 1;
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setError('');
+    setSaved(false);
     try {
-      const { counter: updated } = await api.updateCounter(id, { sound_enabled: next });
+      const { counter: updated } = await api.updateCounter(id, { name: name.trim(), caption: captionText.trim() });
       setCounter(updated);
-    } catch (e) {
-      setError(errorMessage(e));
+      saveCaptionDuration();
+      setSaved(true);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await api.deleteCounter(id);
+      saveCaptionOverride(id, null);
+      router.push('/counters');
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -104,81 +131,52 @@ export function CounterDetail({ id }: { id: string }) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-6 md:pb-12">
-      <header className="mb-5 flex items-center gap-3">
-        <Link href="/counters" aria-label="返回添加页" className="tap-press rounded-lg p-1 text-muted">
+    <main className="page">
+      <header className="page-header">
+        <Link href="/counters" aria-label="返回佛号列表" title="返回佛号列表" className="icon-button -ml-3">
           <ArrowLeft size={22} />
         </Link>
-        <h1 className="flex-1 truncate text-2xl font-semibold tracking-wide text-ink">{counter?.name ?? siteName}</h1>
+        <h1 className="flex-1 text-xl font-semibold">编辑佛号</h1>
+        {counter && <Link href={`/?counter=${encodeURIComponent(id)}`} className="icon-button" title="开始念佛" aria-label="开始念佛"><ArrowUpRight size={22} /></Link>}
       </header>
 
-      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
+      {error && <p className="error-message" role="alert">{error}</p>}
 
       {loading ? (
-        <p className="mt-12 text-center text-muted">加载中…</p>
+        <p className="empty-state" role="status">正在载入...</p>
       ) : !counter ? (
-        <p className="mt-12 text-center text-muted">计数器不存在</p>
+        <p className="empty-state">佛号不存在</p>
       ) : (
-        <div className="space-y-6">
-          <section className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-4">
-            <div className="flex flex-col gap-0.5">
-              <h2 className="text-base font-semibold text-ink">音效</h2>
-              <p className="text-xs text-muted">点按此佛号时播放木鱼声；设置页可一键全关</p>
+        <>
+          <form onSubmit={save} onChange={() => setSaved(false)}>
+            <label className="field-label" htmlFor="counter-name">佛号名称</label>
+            <input id="counter-name" className="field mb-6" value={name} onChange={(event) => setName(event.target.value)} required maxLength={100} />
+            <label className="field-label" htmlFor="counter-caption">念诵字幕</label>
+            <input id="counter-caption" className="field mb-6" value={captionText} onChange={(event) => setCaptionText(event.target.value)} placeholder={counter.name} maxLength={200} />
+            <div className="section">
+              <label className="field-label" htmlFor="caption-mode">字幕时长</label>
+              <select id="caption-mode" className="field" value={captionMsInput === '' ? 'global' : 'custom'} onChange={(event) => setCaptionMsInput(event.target.value === 'global' ? '' : String(globalMs))}>
+                <option value="global">跟随全局 · {globalMs / 1000} 秒</option>
+                <option value="custom">自定义</option>
+              </select>
+              {captionMsInput !== '' && <label className="mt-4 flex items-center gap-3 text-sm text-muted">
+                <input aria-label="字幕时长（毫秒）" className="field" type="number" min={CAPTION_MIN_MS} max={CAPTION_MAX_MS} step={100} value={captionMsInput} onChange={(event) => setCaptionMsInput(event.target.value)} required />毫秒
+              </label>}
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={counter.sound_enabled === 1}
-              aria-label="切换此佛号音效"
-              onClick={() => void toggleSound()}
-              className={`tap-press relative h-7 w-12 shrink-0 rounded-full border border-line transition-colors ${
-                counter.sound_enabled === 1 ? 'bg-accent' : 'bg-line'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
-                  counter.sound_enabled === 1 ? 'left-[22px]' : 'left-0.5'
-                }`}
-              />
-            </button>
-          </section>
+            <button className="primary-button w-full" type="submit" disabled={busy || !name.trim()}><Check size={18} />{busy ? '正在处理...' : '保存修改'}</button>
+            {saved && <p className="mt-3 text-center text-sm text-accent" role="status">已保存</p>}
+          </form>
 
-          <section className="rounded-2xl border border-line bg-surface px-4 py-4">
-            <h2 className="mb-1 text-base font-semibold text-ink">字幕时长覆盖</h2>
-            <p className="mb-3 text-xs text-muted">
-              留空跟随全局 {globalMs}ms；范围 {CAPTION_MIN_MS}–{CAPTION_MAX_MS} 毫秒
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={CAPTION_MIN_MS}
-                max={CAPTION_MAX_MS}
-                step={100}
-                value={captionMsInput}
-                onChange={(e) => setCaptionMsInput(e.target.value)}
-                placeholder={`跟随全局 ${globalMs}`}
-                className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-accent"
-              />
-              <button
-                type="button"
-                onClick={saveCaptionDuration}
-                className="tap-press rounded-full border border-accent px-5 font-semibold text-accent"
-              >
-                保存
-              </button>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-line bg-surface px-4 py-4">
+          <section className="section">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">图片</h2>
+              <h2 className="text-sm">佛号图片 <span className="ml-1 text-muted">{images.length}</span></h2>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={busy}
-                className="tap-press flex items-center gap-1 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="icon-button text-accent" aria-label="上传图片" title="上传图片"
               >
-                <ImagePlus size={16} /> 上传图片
+                <ImagePlus size={22} />
               </button>
               <input
                 ref={fileRef}
@@ -191,26 +189,35 @@ export function CounterDetail({ id }: { id: string }) {
             </div>
 
             {images.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted">还没有图片，点上方按钮添加</p>
+              <p className="py-8 text-center text-sm text-muted">暂无图片</p>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3">
                 {images.map((img) => (
-                  <div key={img.id} className="group relative overflow-hidden rounded-xl border border-line">
+                  <div key={img.id} className="group relative overflow-hidden rounded-lg border border-line">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={img.url} alt="佛号图片" className="aspect-square w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => void removeImage(img.id)}
-                      className="absolute right-1 top-1 rounded-full bg-ink/75 px-2 py-1 text-xs text-bg"
+                      className="icon-button absolute right-1 top-1 bg-bg/95" aria-label="删除图片" title="删除图片"
                     >
-                      删除
+                      <Trash2 size={17} />
                     </button>
                   </div>
                 ))}
               </div>
             )}
           </section>
-        </div>
+          <section className="section">
+            {confirmDelete ? <div className="space-y-4">
+              <p className="text-sm text-danger">删除“{counter.name}”及全部计数和图片？此操作无法撤销。</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button className="secondary-button" disabled={busy} onClick={() => setConfirmDelete(false)}>取消</button>
+                <button className="primary-button bg-danger" disabled={busy} onClick={() => void remove()}>确认删除</button>
+              </div>
+            </div> : <button className="secondary-button w-full text-danger" onClick={() => setConfirmDelete(true)}><Trash2 size={17} />删除佛号</button>}
+          </section>
+        </>
       )}
     </main>
   );
