@@ -22,6 +22,12 @@ export function prefersReducedMotion(): boolean {
 let audioCtx: AudioContext | null = null;
 let woodenFishBuffer: AudioBuffer | null = null;
 let iosAudioUnlocked = false;
+let audioDataPromise: Promise<ArrayBuffer | null> | null =
+  typeof window !== 'undefined'
+    ? fetch('/wooden-fish.wav')
+        .then((r) => r.arrayBuffer() as Promise<ArrayBuffer>)
+        .catch(() => null)
+    : null;
 
 /** 极短静音 wav（44 字节 RIFF 头），用于 iOS PWA 音频会话解锁。 */
 const SILENT_WAV =
@@ -50,11 +56,15 @@ function getAudioContext(): AudioContext | null {
     if (!Ctor) return null;
     if (!audioCtx) {
       audioCtx = new Ctor();
-      // 预加载木鱼音频文件
-      fetch('/wooden-fish.wav')
-        .then((r) => r.arrayBuffer())
-        .then((buf) => audioCtx!.decodeAudioData(buf as ArrayBuffer))
-        .then((decoded) => { woodenFishBuffer = decoded; })
+      const p = audioDataPromise ?? fetch('/wooden-fish.wav').then((r) => r.arrayBuffer() as Promise<ArrayBuffer>);
+      p.then((buf) => {
+        if (buf && audioCtx) {
+          return audioCtx.decodeAudioData(buf as ArrayBuffer);
+        }
+      })
+        .then((decoded) => {
+          if (decoded) woodenFishBuffer = decoded;
+        })
         .catch(() => {});
     }
     return audioCtx;
@@ -65,11 +75,26 @@ function getAudioContext(): AudioContext | null {
 
 /** 播放预加载的木鱼音频 buffer。 */
 function playBuffer(ac: AudioContext): void {
-  if (!woodenFishBuffer) return;
-  const src = ac.createBufferSource();
-  src.buffer = woodenFishBuffer;
-  src.connect(ac.destination);
-  src.start();
+  if (woodenFishBuffer) {
+    const src = ac.createBufferSource();
+    src.buffer = woodenFishBuffer;
+    src.connect(ac.destination);
+    src.start();
+    return;
+  }
+  if (audioDataPromise) {
+    audioDataPromise
+      .then((buf) => buf && ac.decodeAudioData(buf as ArrayBuffer))
+      .then((decoded) => {
+        if (!decoded) return;
+        woodenFishBuffer = decoded;
+        const src = ac.createBufferSource();
+        src.buffer = decoded;
+        src.connect(ac.destination);
+        src.start();
+      })
+      .catch(() => {});
+  }
 }
 
 export function playWoodFish(): void {
