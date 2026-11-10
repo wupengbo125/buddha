@@ -59,10 +59,12 @@ export function ChantClient() {
       ) : (
         <>
           <div className="chant-center">
-            <div className="chant-caption" aria-live="off">
-              {caption && <Caption key={caption.token} data={caption} />}
+            <div className="fish-stage">
+              <div className="chant-caption" aria-live="off">
+                {caption && <Caption key={caption.token} data={caption} />}
+              </div>
+              <WoodenFish onTap={() => handleTap(selected)} />
             </div>
-            <div className="fish-stage"><WoodenFish onTap={() => handleTap(selected)} /></div>
             <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
               <span className="count-row-label">今日</span>
               <span className="count-row-num count-row-today">{(state?.today ?? 0).toLocaleString()}</span>
