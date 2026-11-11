@@ -29,6 +29,15 @@ let audioDataPromise: Promise<ArrayBuffer | null> | null =
         .catch(() => null)
     : null;
 
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && audioCtx) {
+      try { audioCtx.close(); } catch {}
+      audioCtx = null;
+    }
+  });
+}
+
 /** 极短静音 wav（44 字节 RIFF 头），用于 iOS PWA 音频会话解锁。 */
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
@@ -54,12 +63,16 @@ function getAudioContext(): AudioContext | null {
         : window.AudioContext ??
           (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return null;
+    if (audioCtx && ((audioCtx.state as string) === 'interrupted' || audioCtx.state === 'closed')) {
+      try { audioCtx.close(); } catch {}
+      audioCtx = null;
+    }
     if (!audioCtx) {
       audioCtx = new Ctor();
       const p = audioDataPromise ?? fetch('/wooden-fish.wav').then((r) => r.arrayBuffer() as Promise<ArrayBuffer>);
       p.then((buf) => {
         if (buf && audioCtx) {
-          return audioCtx.decodeAudioData(buf as ArrayBuffer);
+          return audioCtx.decodeAudioData(buf.slice(0));
         }
       })
         .then((decoded) => {
@@ -76,17 +89,21 @@ function getAudioContext(): AudioContext | null {
 /** 播放预加载的木鱼音频 buffer。 */
 function playBuffer(ac: AudioContext): void {
   if (woodenFishBuffer) {
-    const src = ac.createBufferSource();
-    src.buffer = woodenFishBuffer;
-    src.connect(ac.destination);
-    src.start();
-    return;
+    try {
+      const src = ac.createBufferSource();
+      src.buffer = woodenFishBuffer;
+      src.connect(ac.destination);
+      src.start();
+      return;
+    } catch {
+      woodenFishBuffer = null;
+    }
   }
   if (audioDataPromise) {
     audioDataPromise
-      .then((buf) => buf && ac.decodeAudioData(buf as ArrayBuffer))
+      .then((buf) => buf && ac.decodeAudioData(buf.slice(0)))
       .then((decoded) => {
-        if (!decoded) return;
+        if (!decoded || ac.state === 'closed') return;
         woodenFishBuffer = decoded;
         const src = ac.createBufferSource();
         src.buffer = decoded;
@@ -102,14 +119,10 @@ export function playWoodFish(): void {
     unlockIosAudioOnce();
     const ac = getAudioContext();
     if (!ac) return;
-    const state = ac.state as string;
-    if (state === 'suspended' || state === 'interrupted') {
-      ac.resume()
-        .then(() => playBuffer(ac))
-        .catch(() => {});
-    } else {
-      playBuffer(ac);
+    if (ac.state === 'suspended') {
+      ac.resume().catch(() => {});
     }
+    playBuffer(ac);
   } catch {
     /* 任何异常静默失败，绝不阻塞计数 */
   }
