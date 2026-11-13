@@ -7,7 +7,7 @@ import { verifyToken } from './session';
 
 export async function requirePageSession(): Promise<void> {
   // verifyToken 内部 fail-closed：密码缺失 / 上下文异常一律 false，不会抛错吞掉 redirect。
-  if (!(await verifyToken(cookies().get(SESSION_COOKIE)?.value))) {
+  if (!(await verifyToken((await cookies()).get(SESSION_COOKIE)?.value))) {
     redirect('/login');
   }
 }

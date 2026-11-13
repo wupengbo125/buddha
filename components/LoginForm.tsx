@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { siteName, siteSubtitle } from '@/lib/brand';
 
 /** 登录页：只有账号 / 密码表单与错误提示，无导航、无计数数据。 */
 export function LoginForm() {
-  const router = useRouter();
   const [username, setUsername] = useState('18592012523');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,8 +28,7 @@ export function LoginForm() {
         setLoading(false);
         return;
       }
-      router.push('/');
-      router.refresh();
+      window.location.assign('/');
     } catch {
       setError('网络错误，请重试');
       setLoading(false);

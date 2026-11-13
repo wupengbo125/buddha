@@ -42,6 +42,11 @@ class SqlitePrepared implements D1PreparedStatement {
     const res = this.sqlite.prepare(this.query).run(...this.params) as { changes: number };
     return { results: [], success: true, meta: { changes: Number(res.changes), changed_db: true } };
   }
+
+  execute<T = unknown>(): D1Result<T> {
+    const results = this.sqlite.prepare(this.query).all(...this.params) as T[];
+    return { results, success: true };
+  }
 }
 
 const noopStatement: D1PreparedStatement = {
@@ -61,13 +66,30 @@ const noopStatement: D1PreparedStatement = {
 
 const noopD1: D1Database = { prepare: () => noopStatement };
 
+export function sqliteD1(sqlite: any): D1Database {
+  return {
+    prepare: (query: string) => new SqlitePrepared(sqlite, query),
+    async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
+      sqlite.exec('BEGIN IMMEDIATE');
+      try {
+        const results = statements.map((statement) => (statement as SqlitePrepared).execute<T>());
+        sqlite.exec('COMMIT');
+        return results;
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
+    },
+  };
+}
+
 function createSqliteD1(): D1Database | null {
   try {
     const nodeRequire: (id: string) => any = eval('require');
     const { DatabaseSync } = nodeRequire('node:sqlite');
     const sqlite = new DatabaseSync(':memory:');
     sqlite.exec(readSchemaSql());
-    return { prepare: (query: string) => new SqlitePrepared(sqlite, query) };
+    return sqliteD1(sqlite);
   } catch {
     return null;
   }

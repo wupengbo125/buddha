@@ -1,8 +1,28 @@
 # 念佛器（buddha）
 
-个人用敲木鱼 / 念佛计数网页。**登录后才能使用，未登录一律显示登录页**；单账号一份数据，手机、电脑登同一账号看到同一份计数。点按即时计数、**每点一次即上报一次**（服务端原子累加，计数以服务端为唯一权威）；每日零点当日声数归零、累计总数永久保留。点按有 Web Audio 合成的短木鱼声，每个佛号可单独开关音效、设置页可一键全关。
+## 发愿与发愿集
 
-技术栈照搬 ebbiii：Next.js 14 App Router + OpenNext Cloudflare + D1（计数库）+ R2（图片）+ TypeScript + Tailwind。
+- 当前使用 Next.js 16、React 19 和 OpenNext Cloudflare。保留自由敲击、旧计数、图片及音效。
+- `/practices`：创建发愿，设置念诵内容、提示与目标次数；佛号和咒语均可。
+- `/practice-collections`：组合、排序发愿，开始、继续、暂停或重新开始；模式选择不放在敲击首页。
+- 首页根据当前会话展示木鱼和发愿进度，达到次数自动进入下一项；不记录现实行为，不因跨日清零发愿进度。
+- `/discover`：搜索公开发愿或发愿集，按最新或点赞排行浏览，支持收藏、点赞及分享详情。广场与分享详情可匿名浏览；个人内容和写操作需要登录，暂未开放注册。
+- 收录即独立复制，整集复制包含所有条目；保留来源，允许修改副本，不继承进度与互动。
+- 公开内容经过审核接口；当前适配器默认通过，真实 AI 尚未接入。公开内容修改后重新审核，审核失败不泄露修改稿。
+- 发愿计数采用事件去重及原子数据库操作；失败点击在内存重试。同步中请保持页面打开，关闭或刷新不能恢复尚未保存的事件。
+- 新增数据库迁移 `0003_practices.sql`。本地开发自动应用全部迁移，生产发布前须执行远端迁移；禁止修改已应用迁移。
+
+### 验证与部署边界
+
+`pnpm typecheck` 验证类型；`pnpm test` 包含真实 SQLite 的 API 行为测试；`pnpm build` 使用 Webpack 构建 Next 生产应用。
+
+本地开发继续使用进程内 SQLite 与 R2，重启服务会清空演示数据。生产使用 D1 和 R2 持久化。
+
+Next 构建与 Worker 打包须分别验证。Windows 下 OpenNext 打包可能因符号链接权限报 `EPERM`；本次未完成 Worker 打包或线上部署，需在 Linux/WSL 或现有 Linux CI 复验。
+
+个人用敲木鱼 / 念佛计数网页。**个人内容和写操作需要登录，公开广场与分享详情可匿名浏览**；单账号一份数据，手机、电脑登同一账号看到同一份计数。点按即时计数、**每点一次即上报一次**（服务端原子累加，计数以服务端为唯一权威）；每日零点当日声数归零、累计总数永久保留。点按通过 Web Audio 播放静态 WAV 木鱼音效，每个佛号可单独开关音效、设置页可一键全关。
+
+技术栈照搬 ebbiii：Next.js 16 App Router + React 19 + OpenNext Cloudflare + D1（计数库）+ R2（图片）+ TypeScript + Tailwind。
 
 ## 上线地址
 
@@ -14,9 +34,9 @@
 - 密码：来自环境变量 **`common_password`**。生产由 Cloudflare Worker secret 提供（`lib/session.ts` 经 `getCloudflareContext().env.common_password` 读取），本地 `next dev` / 测试回退 `process.env.common_password`。
 - 密码**不进仓库、不进日志、不进客户端 bundle**：CI 每次部署用仓库 Secret `COMMON_PASSWORD` 执行 `wrangler secret put common_password` 幂等注入；本地把 `.env.example` 复制为 `.env.local` 自行填值。
 - session：jose `SignJWT` HS256，cookie `buddha_session`（`httpOnly` + `secure`(https) + `sameSite=lax`，30 天）；签名密钥由 `common_password` 做 SHA-256 派生，不引入第二个 secret。
-- `middleware.ts` 守门：未登录访问任何页面 302 到 `/login`，访问数据 API 401；已登录访问 `/login` 302 回 `/`。受保护页面另有 `lib/guard.ts` 服务端二次校验。
+- `middleware.ts` 守门：`/discover`、分享详情及对应 API 的 GET / HEAD 请求放行，个人内容与写操作仍需登录；未登录访问受保护页面重定向到 `/login`，访问受保护数据 API 返回 401；已登录访问 `/login` 重定向回 `/`。受保护页面另有 `lib/guard.ts` 服务端二次校验。
 
-## 四个页面（各只干一件事）
+## 基础页面（各只干一件事）
 
 | 路由 | 职责 |
 |---|---|
@@ -26,7 +46,7 @@
 | `/counter/[id]` 详情 | 该佛号的图片（上传/删除/回显）、单计数器字幕时长、独立音效开关 |
 | `/settings` 设置页 | 点击音效全局总开关、字幕淡出时长、时区、外观、域名说明、退出登录；不管佛号 |
 
-五个受保护页面共用一套导航（移动端底部 / 桌面顶部：念佛 / 添加 / 设置），登录页无导航。念佛页视觉取 `one-awesome-design/reference/apple-design.md` 的原则（极低密度、大留白、UI 退让、单一强调色、字阶克制、44px 触控、`scale(0.95)` 按压、8px 间距），换成禅意配色：宣纸底 `#f6f4ec`、墨色字 `#3a3327`、檀木/赭石 `#8a5a3b` 为唯一强调色、细发丝线、金色极少量点缀，无 Apple 蓝、无渐变背景、无卡片投影。
+页面共用一套导航（移动端底部 / 桌面顶部：念佛 / 佛号 / 发愿 / 广场 / 设置），登录页无导航。念佛页视觉取 `one-awesome-design/reference/apple-design.md` 的原则（极低密度、大留白、UI 退让、单一强调色、字阶克制、44px 触控、`scale(0.95)` 按压、8px 间距），换成禅意配色：宣纸底 `#f6f4ec`、墨色字 `#3a3327`、檀木/赭石 `#8a5a3b` 为唯一强调色、细发丝线、金色极少量点缀，无 Apple 蓝、无渐变背景、无卡片投影。
 
 ## 深色模式 / 添加到主屏幕（PWA）
 
@@ -41,7 +61,7 @@
 - **跨零点**：服务端按请求 `date` 处理，`today_date` 与本次 `date` 不同则当日归零（`today=1`）、总数不变；前端零点轻量重拉列表刷新显示，以服务端响应为准。
 - **每项目独立音效**：`counters.sound_enabled`（迁移 `migrations/0002_add_sound.sql` 新增，默认 1）存 D1、跟账号走、跨设备一致；详情页与添加页可切换，走 `PATCH /api/counters/[id]`。
 - **全局总开关**：设置页「点击音效」总开关（存 localStorage）一键全关；关掉时任何佛号都不响。两级判定：总开关 off → 全静音；总开关 on → 看各佛号自己的 `sound_enabled`。
-- **音效与震动**：`lib/sound.ts` 用 Web Audio 合成约 110ms 短木鱼声（无资源文件，首次用户手势内创建/恢复 `AudioContext`）；Android 用 `navigator.vibrate` 短脉冲渐进增强、iOS 静默不报错；`prefers-reduced-motion` 下抑制视觉涟漪与震动（不影响音效）。任何音效异常都静默、不阻塞计数。
+- **音效与震动**：`lib/sound.ts` 用 Web Audio 加载并播放静态音效 `public/wooden-fish.wav`（首次用户手势内创建/恢复 `AudioContext`）；Android 用 `navigator.vibrate` 短脉冲渐进增强、iOS 静默不报错；`prefers-reduced-motion` 下抑制视觉涟漪与震动（不影响音效）。任何音效异常都静默、不阻塞计数。
 - **字幕**：点按弹出（文案取计数器字幕，为空则取佛号名），到设定时长淡出；连续点击重置计时；时长全局可设、每个计数器可覆盖。
 - 去掉按浏览器 `device_id` 隔离：所有 `SELECT/INSERT/UPDATE/DELETE` 不再按 device_id 过滤，写入时统一填固定常量 `OWNER_ID = 'owner'`，单账号一份数据。
 - 图片存 R2；回显接口 `GET /api/img/[...key]` 验 session cookie（`<img src>` 自动携带）并校验 key 存在于 `images` 表，否则 404，URL 不再带 device_id。
@@ -61,14 +81,14 @@ pnpm run db:migrate:local                    # 本地 D1 建表
 pnpm run preview                             # opennextjs-cloudflare build + preview
 ```
 
-数据库迁移按文件名顺序应用：`migrations/0001_init.sql` 已应用到远端、**禁止改动已应用的迁移**；新增列走 `migrations/0002_add_sound.sql`。`lib/local.ts` 的 `readSchemaSql()` 按序读取全部 `migrations/*.sql` 拼接，本地 dev / 单测内存 D1 自动带上新列。
+数据库迁移按文件名顺序应用：`migrations/0001_init.sql` 建表，`migrations/0002_add_sound.sql` 新增音效列，`migrations/0003_practices.sql` 新增发愿相关表；**禁止改动已应用的迁移，后续变更追加新迁移**。`lib/local.ts` 的 `readSchemaSql()` 按序读取全部 `migrations/*.sql` 拼接，本地 dev / 单测内存 D1 自动应用全部迁移。
 
 ## 校验
 
 ```bash
 pnpm typecheck       # tsc --noEmit
-pnpm test            # vitest run，纯逻辑单测，不依赖 Cloudflare 上下文
-pnpm build           # next build
+pnpm test            # vitest run，逻辑单测与真实 SQLite 的 API 行为测试
+pnpm build           # next build --webpack
 ```
 
 ## 部署
@@ -105,12 +125,12 @@ pnpm build           # next build
 - `lib/counter-store.ts` 客户端计数显示纯逻辑（乐观 +1 / 每次点击独立 event_id / 服务端响应校正）
 - `lib/storage.ts` 上报失败请求的内存重试队列（沿用同一 event_id 幂等重发）
 - `lib/taps.ts` 服务端原子累加的纯逻辑镜像 + event_id 幂等账本（单测用）
-- `lib/sound.ts` 两级音效开关判定 / Web Audio 木鱼声 / 震动渐进增强
+- `lib/sound.ts` 两级音效开关判定 / Web Audio 播放静态 WAV 木鱼音效 / 震动渐进增强
 - `lib/settings.ts` 字幕时长 / 时区 / 点击音效全局总开关 / 覆盖
 - `lib/r2.ts` / `lib/image-access.ts` R2 key 与回显 URL 生成
 - `lib/time.ts` 时区日期键
 - `lib/runtime.ts` D1 / R2 绑定 + 密码读取
-- `migrations/0001_init.sql` 建表；`migrations/0002_add_sound.sql` 新增每项目音效列（`lib/local.ts` 按序读全部迁移供本地兜底）
+- `migrations/0001_init.sql` 建表；`migrations/0002_add_sound.sql` 新增每项目音效列；`migrations/0003_practices.sql` 新增发愿相关表（`lib/local.ts` 按序读全部迁移供本地兜底）
 - `app/api/auth/**` 登录 / 登出 / me；`app/api/**` 计数器 CRUD / 计数原子累加上报 / 图片 / 图片回显
 - `components/**` 导航、木鱼、念佛逻辑 hook、四页客户端、字幕、登录表单、图片管理
 - `__tests__/**` vitest 单测

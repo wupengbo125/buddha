@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CircleDot, Library, SlidersHorizontal } from 'lucide-react';
+import { CircleDot, SlidersHorizontal, BookOpen, Compass } from 'lucide-react';
 
 const items = [
   { href: '/', label: '念佛', icon: CircleDot },
-  { href: '/counters', label: '佛号', icon: Library },
+  { href: '/practices', label: '发愿', icon: BookOpen },
+  { href: '/discover', label: '广场', icon: Compass },
   { href: '/settings', label: '设置', icon: SlidersHorizontal },
 ];
 
@@ -14,7 +15,8 @@ export function Nav() {
   const pathname = usePathname();
   const active = (href: string) => {
     if (href === '/') return pathname === '/';
-    if (href === '/counters') return pathname === '/counters' || pathname.startsWith('/counter/');
+    if (href === '/practices') return pathname === '/practices' || pathname === '/practice-collections' || pathname.startsWith('/counter/');
+    if (href === '/discover') return pathname.startsWith('/discover');
     return pathname === href;
   };
 

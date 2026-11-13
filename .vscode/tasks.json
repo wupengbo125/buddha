@@ -1,0 +1,36 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Verify Next 16 production build",
+			"type": "shell",
+			"command": "node.exe",
+			"args": [
+				"node_modules/next/dist/bin/next",
+				"build",
+				"--webpack"
+			],
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Local practice demo",
+			"type": "shell",
+						"command": "pnpm dev --port 3100",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify OpenNext Cloudflare production build",
+			"type": "shell",
+			"command": "node.exe",
+			"args": [
+				"node_modules/@opennextjs/cloudflare/dist/cli/index.js",
+				"build"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

@@ -4,21 +4,25 @@ import type { D1Database } from '@/lib/db';
 import { getEnv } from '@/lib/runtime';
 import { requireSession, jsonError, readJson } from '@/lib/http';
 import type { Counter } from '@/lib/types';
+import { OWNER_ID } from '@/lib/auth';
+import { atomic, ownedRow } from '@/lib/practice-store';
+import { detailHandlers } from '@/lib/practice-api';
+import { reviewContent } from '@/lib/practice-moderation';
+import { practiceResponse } from '@/lib/practice-http';
 
 const SELECT_COUNTER =
   'SELECT id, device_id, name, caption, total, today, today_date, sound_enabled, created_at, updated_at FROM counters';
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 async function ownedCounter(DB: D1Database, id: string): Promise<Counter | null> {
-  // 去 device_id 隔离：只按 id 定位。
-  return DB.prepare(`${SELECT_COUNTER} WHERE id = ?`).bind(id).first<Counter>();
+  return DB.prepare(`${SELECT_COUNTER} WHERE id = ? AND id IN (SELECT id FROM practices WHERE owner_id = ?)`).bind(id, OWNER_ID).first<Counter>();
 }
 
 const PatchBody = z
   .object({
-    name: z.string().trim().min(1).max(60).optional(),
-    caption: z.string().max(200).optional(),
+    name: z.string().trim().min(1).max(10000).optional(),
+    caption: z.string().max(1000).optional(),
     sound_enabled: z.union([z.literal(0), z.literal(1)]).optional(),
   })
   .refine((d) => d.name !== undefined || d.caption !== undefined || d.sound_enabled !== undefined, {
@@ -27,60 +31,47 @@ const PatchBody = z
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (!(await requireSession(req))) return jsonError('未登录', 401);
+  const { id } = await params;
   const parsed = PatchBody.safeParse(await readJson(req));
   if (!parsed.success) return jsonError('输入无效', 400);
   try {
     const { DB } = getEnv();
-    const existing = await ownedCounter(DB, params.id);
+    const existing = await ownedCounter(DB, id);
     if (!existing) return jsonError('计数器不存在', 404);
+    const previous = await ownedRow(DB, 'practices', id, OWNER_ID);
 
     const sets: string[] = [];
     const vals: unknown[] = [];
+    const statements = [];
+    const now = new Date().toISOString();
     if (parsed.data.name !== undefined) {
-      sets.push('name = ?');
+      sets.push('recitation = ?');
       vals.push(parsed.data.name);
     }
     if (parsed.data.caption !== undefined) {
-      sets.push('caption = ?');
+      sets.push("prompts = json_set(prompts, '$[0]', ?)");
       vals.push(parsed.data.caption);
     }
+    const textChanged = sets.length > 0;
+    if (textChanged) {
+      sets.push("visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END", 'revision = revision + 1', 'updated_at = ?');
+      statements.push(DB.prepare(`UPDATE practices SET ${sets.join(', ')} WHERE id = ? AND owner_id = ?`)
+        .bind(...vals, now, id, OWNER_ID));
+    }
     if (parsed.data.sound_enabled !== undefined) {
-      sets.push('sound_enabled = ?');
-      vals.push(parsed.data.sound_enabled);
+      statements.push(DB.prepare('UPDATE counters SET sound_enabled = ?, updated_at = ? WHERE id = ?')
+        .bind(parsed.data.sound_enabled, now, id));
     }
-    sets.push('updated_at = ?');
-    vals.push(new Date().toISOString(), params.id);
-    await DB.prepare(`UPDATE counters SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    await atomic(DB, statements);
+    if (textChanged && (previous.approved_snapshot || previous.visibility === 'pending')) {
+      await reviewContent(DB, 'practices', id, OWNER_ID);
+    }
 
-    const counter = await ownedCounter(DB, params.id);
+    const counter = await ownedCounter(DB, id);
     return NextResponse.json({ counter });
-  } catch {
-    return jsonError('更新失败', 500);
+  } catch (error) {
+    return practiceResponse(error);
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: Ctx) {
-  if (!(await requireSession(req))) return jsonError('未登录', 401);
-  try {
-    const { DB, IMAGES } = getEnv();
-    const existing = await ownedCounter(DB, params.id);
-    if (!existing) return jsonError('计数器不存在', 404);
-
-    const imgs = await DB.prepare('SELECT r2_key FROM images WHERE counter_id = ?')
-      .bind(params.id)
-      .all<{ r2_key: string }>();
-    for (const row of imgs.results ?? []) {
-      try {
-        await IMAGES.delete(row.r2_key);
-      } catch {
-        /* 忽略单个 R2 对象删除失败 */
-      }
-    }
-    await DB.prepare('DELETE FROM images WHERE counter_id = ?').bind(params.id).run();
-    await DB.prepare('DELETE FROM tap_events WHERE counter_id = ?').bind(params.id).run();
-    await DB.prepare('DELETE FROM counters WHERE id = ?').bind(params.id).run();
-    return NextResponse.json({ ok: true });
-  } catch {
-    return jsonError('删除失败', 500);
-  }
-}
+export const DELETE = detailHandlers('practices').DELETE;

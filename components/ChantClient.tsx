@@ -9,11 +9,29 @@ import { loadSettings, saveSettings } from '@/lib/settings';
 import { Caption } from './Caption';
 import { WoodenFish } from './WoodenFish';
 import { useChant } from './useChant';
+import { PracticeChant } from './PracticeChant';
+import type { PracticeSessionState } from '@/lib/practice-types';
 
 export function ChantClient() {
   const { counters, states, caption, loading, error, handleTap } = useChant();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [practiceSession, setPracticeSession] = useState<PracticeSessionState | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/practice-session?timeZone=${encodeURIComponent(loadSettings().timeZone)}`)
+      .then(async response => {
+        if (!response.ok) throw new Error('发愿进度暂时无法载入');
+        return response.json();
+      })
+      .then(result => { if (live) setPracticeSession(result as PracticeSessionState); })
+      .catch(failure => { if (live) setSessionError(failure.message); })
+      .finally(() => { if (live) setSessionLoading(false); });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     setSoundEnabled(loadSettings().soundEnabled);
@@ -50,11 +68,13 @@ export function ChantClient() {
         </button>
       </header>
 
-      {loading ? <div className="empty-state" role="status">正在载入佛号...</div> : !selected ? (
+      {sessionLoading || loading ? <div className="empty-state" role="status">正在载入...</div> : sessionError ? (
+        <p className="error-message" role="alert">{sessionError}</p>
+      ) : practiceSession?.active ? <PracticeChant initial={practiceSession} onPaused={setPracticeSession} /> : !selected ? (
         <div className="empty-state">
           <div className="fish-stage"><WoodenFish disabled onTap={() => undefined} /></div>
-          <h1 className="page-title text-ink">从一声佛号开始</h1>
-          <Link className="primary-button" href="/counters"><Plus size={18} />添加佛号</Link>
+          <h1 className="page-title text-ink">从一个发愿开始</h1>
+          <Link className="primary-button" href="/practices"><Plus size={18} />创建发愿</Link>
         </div>
       ) : (
         <>

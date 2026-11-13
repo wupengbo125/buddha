@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Check, ImagePlus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { practiceRequest } from './PracticeLibrary';
 import {
   CAPTION_DEFAULT_MS,
   CAPTION_MIN_MS,
@@ -93,7 +94,33 @@ export function CounterDetail({ id }: { id: string }) {
     try {
       await api.deleteCounter(id);
       saveCaptionOverride(id, null);
-      router.push('/counters');
+      router.push('/practices');
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const start = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await practiceRequest('/api/practice-session', 'POST', { action: 'pause' });
+      router.push(`/?counter=${encodeURIComponent(id)}`);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateSound = async (enabled: boolean) => {
+    setBusy(true);
+    setError('');
+    try {
+      const { counter: updated } = await api.updateCounter(id, { sound_enabled: enabled ? 1 : 0 });
+      setCounter(updated);
     } catch (error) {
       setError(errorMessage(error));
     } finally {
@@ -133,11 +160,11 @@ export function CounterDetail({ id }: { id: string }) {
   return (
     <main className="page">
       <header className="page-header">
-        <Link href="/counters" aria-label="返回佛号列表" title="返回佛号列表" className="icon-button -ml-3">
+        <Link href="/practices" aria-label="返回发愿列表" title="返回发愿列表" className="icon-button -ml-3">
           <ArrowLeft size={22} />
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">编辑佛号</h1>
-        {counter && <Link href={`/?counter=${encodeURIComponent(id)}`} className="icon-button" title="开始念佛" aria-label="开始念佛"><ArrowUpRight size={22} /></Link>}
+        <h1 className="flex-1 text-xl font-semibold">编辑发愿</h1>
+        {counter && <button type="button" onClick={start} disabled={busy} className="icon-button" title="开始念诵" aria-label="开始念诵"><ArrowUpRight size={22} /></button>}
       </header>
 
       {error && <p className="error-message" role="alert">{error}</p>}
@@ -145,13 +172,21 @@ export function CounterDetail({ id }: { id: string }) {
       {loading ? (
         <p className="empty-state" role="status">正在载入...</p>
       ) : !counter ? (
-        <p className="empty-state">佛号不存在</p>
+        <p className="empty-state">发愿不存在</p>
       ) : (
         <>
+          <div className="count-row" aria-label={`今日 ${counter.today} 声，累计 ${counter.total} 声`}>
+            <span className="count-row-label">今日</span>
+            <span className="count-row-num count-row-today">{counter.today.toLocaleString()}</span>
+            <span className="count-row-sep">/</span>
+            <span className="count-row-label">累计</span>
+            <span className="count-row-num count-row-total">{counter.total.toLocaleString()}</span>
+            <span className="count-row-label">声</span>
+          </div>
           <form onSubmit={save} onChange={() => setSaved(false)}>
-            <label className="field-label" htmlFor="counter-name">佛号名称</label>
-            <input id="counter-name" className="field mb-6" value={name} onChange={(event) => setName(event.target.value)} required maxLength={100} />
-            <label className="field-label" htmlFor="counter-caption">念诵字幕</label>
+            <label className="field-label" htmlFor="counter-name">念诵内容</label>
+            <input id="counter-name" className="field mb-6" value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} />
+            <label className="field-label" htmlFor="counter-caption">发愿提示</label>
             <input id="counter-caption" className="field mb-6" value={captionText} onChange={(event) => setCaptionText(event.target.value)} placeholder={counter.name} maxLength={200} />
             <div className="section">
               <label className="field-label" htmlFor="caption-mode">字幕时长</label>
@@ -168,8 +203,14 @@ export function CounterDetail({ id }: { id: string }) {
           </form>
 
           <section className="section">
+            <label className="flex items-center justify-between text-sm">
+              发愿音效
+              <input type="checkbox" checked={counter.sound_enabled === 1} disabled={busy} onChange={(event) => void updateSound(event.target.checked)} />
+            </label>
+          </section>
+          <section className="section">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm">佛号图片 <span className="ml-1 text-muted">{images.length}</span></h2>
+              <h2 className="text-sm">发愿图片 <span className="ml-1 text-muted">{images.length}</span></h2>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -195,7 +236,7 @@ export function CounterDetail({ id }: { id: string }) {
                 {images.map((img) => (
                   <div key={img.id} className="group relative overflow-hidden rounded-lg border border-line">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.url} alt="佛号图片" className="aspect-square w-full object-cover" />
+                    <img src={img.url} alt="发愿图片" className="aspect-square w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => void removeImage(img.id)}
@@ -215,7 +256,7 @@ export function CounterDetail({ id }: { id: string }) {
                 <button className="secondary-button" disabled={busy} onClick={() => setConfirmDelete(false)}>取消</button>
                 <button className="primary-button bg-danger" disabled={busy} onClick={() => void remove()}>确认删除</button>
               </div>
-            </div> : <button className="secondary-button w-full text-danger" onClick={() => setConfirmDelete(true)}><Trash2 size={17} />删除佛号</button>}
+            </div> : <button className="secondary-button w-full text-danger" onClick={() => setConfirmDelete(true)}><Trash2 size={17} />删除发愿</button>}
           </section>
         </>
       )}

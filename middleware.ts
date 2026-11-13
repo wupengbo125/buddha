@@ -17,6 +17,12 @@ export async function middleware(req: NextRequest) {
 
   if (PUBLIC_ASSETS.has(pathname)) return NextResponse.next();
 
+  if ((req.method === 'GET' || req.method === 'HEAD') &&
+      (pathname === '/discover' || pathname.startsWith('/discover/') ||
+       pathname === '/api/discover' || pathname.startsWith('/api/discover/'))) {
+    return NextResponse.next();
+  }
+
   // 放行登录与 me（前者校验凭据、后者报告登录态，均不暴露数据）。
   // 其余 /api/*（含 logout、所有数据 API）未登录一律 401。
   if (isApi && (pathname === '/api/auth/login' || pathname === '/api/auth/me')) {

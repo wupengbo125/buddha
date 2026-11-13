@@ -13,8 +13,7 @@ export async function GET(req: NextRequest) {
   if (!(await requireSession(req))) return jsonError('未登录', 401);
   try {
     const { DB } = getEnv();
-    // 单账号一份数据：不再按 device_id 过滤，手机 / 电脑登同一账号看到同一份。
-    const res = await DB.prepare(`${SELECT_COUNTER} ORDER BY created_at ASC, id ASC`).all<Counter>();
+    const res = await DB.prepare(`${SELECT_COUNTER} WHERE id IN (SELECT id FROM practices WHERE owner_id = ?) ORDER BY created_at ASC, id ASC`).bind(OWNER_ID).all<Counter>();
     return NextResponse.json({ counters: res.results ?? [] });
   } catch {
     return jsonError('获取计数器失败', 500);
