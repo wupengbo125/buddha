@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Copy, ExternalLink, EllipsisVertical, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, CircleArrowRight, Copy, ExternalLink, EllipsisVertical, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
 import type { Collection as PracticeCollection, Practice, PracticeSessionState } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
@@ -256,12 +256,12 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
           <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{`今日 ${(item.today_total ?? 0).toLocaleString()} · 累计 ${(item.personal_total ?? 0).toLocaleString()}`}</p>
         </div>}
         <div className={styles.cardButtons}>
-          <button type="button" className="icon-button" title={`开始 ${item.name}`} aria-label={`开始 ${item.name}`} disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><Play size={18} /></button>
+          <button type="button" className="icon-button" title={`进入 ${item.name}`} aria-label={`进入 ${item.name}`} disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><CircleArrowRight size={19} /></button>
           <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
         </div>
       </div>
 
-          {expanded === item.id && ('items' in item ? <ol className={styles.levelList}>{item.items.map((practice, index) => { const current = (item.progress?.index ?? 0) === index && Boolean(item.progress); return <li className={`${styles.levelRow} ${current ? styles.levelCurrent : ''}`} key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><span className={styles.meta}>{current ? `${Math.min(item.progress!.counts[index] ?? 0, practice.target).toLocaleString()} / ${practice.target.toLocaleString()} 次` : `${practice.target.toLocaleString()} 次`}</span></div></li>; })}</ol> : <div className={styles.details}>{item.prompts.length > 0 && <><h3 className={styles.meta}>弹幕</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
+          {expanded === item.id && ('items' in item ? <ol className={styles.levelList}>{item.items.map((practice, index) => { const current = (item.progress?.index ?? 0) === index && Boolean(item.progress); return <li className={`${styles.levelRow} ${current ? styles.levelCurrent : ''}`} key={`${practice.id}-${index}`}><span className={styles.levelIndex}>{String(index + 1).padStart(2, '0')}</span><div className={styles.grow}><h3 className={styles.levelName}>{practice.name}</h3></div><span className={styles.levelMeta}>{current ? `${Math.min(item.progress!.counts[index] ?? 0, practice.target).toLocaleString()} / ${practice.target.toLocaleString()} 次` : `${practice.target.toLocaleString()} 次`}</span></li>; })}</ol> : <div className={styles.details}>{item.prompts.length > 0 && <><h3 className={styles.meta}>弹幕</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
     </li>
   );
 
