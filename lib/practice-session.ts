@@ -40,8 +40,8 @@ export async function sessionState(db: D1Database, owner: string, date: string):
   ]);
   const row = results[0].results?.[0] as (RunRow & { revision: number }) | undefined;
   const stats = results[2].results?.[0] as { today: number; total: number };
-  const perPracticeToday = new Map((results[3].results as { id: string; today: number }[] | undefined ?? []).map((item) => [item.id, item.today]));
-  const perPracticeTotal = new Map((results[4].results as { id: string; total: number }[] | undefined ?? []).map((item) => [item.id, item.total]));
+  const perPracticeToday = new Map((results[4].results as { id: string; today: number }[] | undefined ?? []).map((item) => [item.id, item.today]));
+  const perPracticeTotal = new Map((results[3].results as { id: string; total: number }[] | undefined ?? []).map((item) => [item.id, item.total]));
   let active: Run | null = null;
   if (row?.id) {
     const snapshot = JSON.parse(row.snapshot) as Collection;

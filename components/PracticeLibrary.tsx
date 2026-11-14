@@ -297,7 +297,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
       {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && statusFold.length === 0 && !error ? <div className="empty-state"><p>暂无{entityName}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增{entityName}</button></div> : (
       <>
       {statusFold.length > 0 && <section className={styles.fold}>
-        <button type="button" className={styles.foldHead} aria-expanded={publicFoldOpen} onClick={() => setPublicFoldOpen((value) => !value)}><span>已公开 · {statusFold.length}</span><span>{publicFoldOpen ? '收起' : '展开'}{publicFoldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
+        <button type="button" className={styles.foldHead} aria-expanded={publicFoldOpen} onClick={() => setPublicFoldOpen((value) => !value)}><span>公开 · {statusFold.length}</span><span>{publicFoldOpen ? '收起' : '展开'}{publicFoldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
         {publicFoldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{statusFold.map(renderCard)}</ul>}
       </section>}
       <ul className={styles.contentList}>{items.map(renderCard)}</ul>
