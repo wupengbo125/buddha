@@ -34,10 +34,13 @@
 .confirmation p { color: rgb(var(--c-muted)); font-size: 13px; margin-top: 8px; line-height: 1.7; }
 .contentList { border-top: 1px solid var(--c-line); }
 .cardActions { margin-top: 2px; justify-content: flex-end; }
-.contentRow { padding: 10px 0; border-bottom: 1px solid var(--c-line); }
-.runningRow { border-left: 3px solid rgb(var(--c-accent)); padding-left: 8px; background: rgb(var(--c-accent-soft) / .45); }
-.rowHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.contentTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 18px; line-height: 1.45; min-width: 0; overflow-wrap: anywhere; }
+.contentRow { padding: 14px 0; border-bottom: 1px solid var(--c-line); }
+.runningRow { border-left: 3px solid rgb(var(--c-accent)); padding-left: 12px; background: linear-gradient(90deg, rgb(var(--c-accent-soft) / .38), transparent 74%); }
+.rowHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rowMain { min-width: 0; }
+.rowMeta { margin-top: 6px; font-size: 11.5px; color: rgb(var(--c-muted)); letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rowMetaRunning { color: rgb(var(--c-accent)); }
+.contentTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 21px; line-height: 1.25; letter-spacing: .02em; min-width: 0; overflow-wrap: anywhere; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.5; color: rgb(var(--c-muted)); flex-shrink: 0; padding-top: 7px; }
 .badge[data-status='public'] { color: rgb(var(--c-accent)); }
 .badge[data-status='rejected'] { color: rgb(var(--c-danger)); }
@@ -104,7 +107,7 @@
 
 /* ── 每条一个主按钮 + 一个「⋯」。其余动作进面板。 ── */
 .cardButtons { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.more { width: 38px; height: 38px; min-height: 38px; display: grid; place-items: center; border: 1px solid var(--c-line); border-radius: 6px; color: rgb(var(--c-ink-soft)); background: none; }
+.more { width: 40px; height: 40px; min-height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px; color: rgb(var(--c-muted)); background: none; }
 .more:hover { background: rgb(var(--c-surface)); }
 
 /* ── 操作面板：贴底，四行，删除是红的 ── */

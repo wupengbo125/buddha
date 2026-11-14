@@ -30,8 +30,9 @@ export interface ContentRow {
   approved_snapshot: string | null;
   published_at: string | null;
 }
-type PracticeRow = ContentRow & { prompts: string; target: number; item_id?: string; personal_total?: number };
+type PracticeRow = ContentRow & { prompts: string; target: number; item_id?: string; personal_total?: number; today_total?: number };
 const personalTotalSql = 'COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
+const todayTotalSql = 'COALESCE((SELECT CASE WHEN today_date = ? THEN today ELSE 0 END FROM counters WHERE id = practices.id), 0) AS today_total';
 
 export async function atomic(db: D1Database, statements: D1PreparedStatement[]) {
   if (!db.batch) throw new Error('D1 batch is required');
@@ -86,8 +87,8 @@ export async function ownedContent(db: D1Database, kind: ContentKind, id: string
   return { ...common(row), ...interactions, items, total_target: items.reduce((total, item) => total + item.target, 0), reviews, progress };
 }
 
-export async function listPractices(db: D1Database, owner: string): Promise<Practice[]> {
-  const rows = await db.prepare(`SELECT *, ${personalTotalSql} FROM practices WHERE owner_id = ? ORDER BY created_at, id`).bind(owner).all<PracticeRow>();
+export async function listPractices(db: D1Database, owner: string, date: string): Promise<Practice[]> {
+  const rows = await db.prepare(`SELECT *, ${personalTotalSql}, ${todayTotalSql} FROM practices WHERE owner_id = ? ORDER BY created_at, id`).bind(date, owner).all<PracticeRow>();
   return Promise.all((rows.results ?? []).map(async (row) => ({ ...practiceFromRow(row), ...await interactionState(db, 'practices', row.id, owner) })));
 }
 
