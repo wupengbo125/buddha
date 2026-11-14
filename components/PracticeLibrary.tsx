@@ -73,6 +73,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
   const [active, setActive] = useState<PracticeSessionState['active']>(null);
+  const [lastPracticeId, setLastPracticeId] = useState('');
   const [editor, setEditor] = useState<Editor | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -110,6 +111,8 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     });
     return () => controller.abort();
   }, [revision, kind]);
+
+  useEffect(() => { try { setLastPracticeId(window.localStorage.getItem('buddha:last-practice') ?? ''); } catch {} }, []);
 
   const allItems = kind === 'practices' ? practices : collections;
   const foldDone = allItems.filter((entry) => 'items' in entry ? Boolean(entry.progress?.completed) : (entry.personal_total ?? 0) >= entry.target);
@@ -196,6 +199,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     setNotice('');
     try {
       await practiceRequest('/api/practice-session', 'POST', { action: 'pause' });
+      try { window.localStorage.setItem('buddha:last-practice', practice.id); } catch {}
       router.push(`/?counter=${encodeURIComponent(practice.id)}`);
     } catch (failure) {
       showError(failure);
@@ -230,9 +234,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     }
   }
 
-  const isRunning = (item: PracticeContent) => Boolean(active) && ('items' in item
-    ? active!.collection_id === item.id
-    : active!.items[active!.index]?.id === item.id);
+  const isRunning = (item: PracticeContent) => ('items' in item
+    ? Boolean(active) && active!.collection_id === item.id
+    : (Boolean(active) && active!.items[active!.index]?.id === item.id) || item.id === lastPracticeId);
 
   const renderCard = (item: PracticeContent) => (
     <li className={`${styles.contentRow} ${isRunning(item) ? styles.runningRow : ''}`} key={item.id}>
@@ -310,7 +314,6 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <div className={styles.sheetGrab} />
         <p className={styles.sheetK}>可以做什么</p>
         <h2 className={styles.sheetTitle}>{menu.name}</h2>
-        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy || menu.items.length === 0} onClick={() => { setMenu(null); sessionAction('start', menu.id); }}><Play size={18} />开始</button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
         {!('items' in menu) && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setCollecting(menu); setMenu(null); }}><Bookmark size={18} />加入发愿集<span className={styles.sheetHint}>放进某一集</span></button>}
