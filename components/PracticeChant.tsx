@@ -195,7 +195,7 @@ export function PracticeChant({ initial, onStateChange }: { initial: PracticeSes
         <span className="count-row-num count-row-total">{(practice?.personal_total ?? 0).toLocaleString()}</span>
         <span className="count-row-label">声</span>
       </div>}
-      {practice?.target ? <div className="count-progress" aria-label={`累计 ${practice.personal_total ?? 0} / 目标 ${practice.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((practice.personal_total ?? 0) / practice.target) * 100)}%` }} /></div><p className="count-progress-meta">{(practice.personal_total ?? 0).toLocaleString()} / {practice.target.toLocaleString()}</p></div> : null}
+      {practice?.target ? <div className="count-progress" aria-label={`累计 ${practice.personal_total ?? 0} / 目标 ${practice.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((practice.personal_total ?? 0) / practice.target) * 100)}%` }} /></div></div> : null}
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}
 
       {recovering && <p role="status">正在同步之前的敲击</p>}

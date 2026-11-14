@@ -69,12 +69,12 @@ export async function ownedRow(db: D1Database, kind: ContentKind, id: string, ow
   return row;
 }
 
-export async function ownedContent(db: D1Database, kind: ContentKind, id: string, owner: string): Promise<Content> {
+export async function ownedContent(db: D1Database, kind: ContentKind, id: string, owner: string, date = ''): Promise<Content> {
   const row = await ownedRow(db, kind, id, owner);
   const reviews = (await db.prepare('SELECT id, revision, status, reason FROM practice_reviews WHERE kind = ? AND content_id = ? AND owner_id = ? ORDER BY created_at, id').bind(kind, id, owner).all<PracticeReview>()).results ?? [];
   const interactions = await interactionState(db, kind, id, owner);
   if (kind === 'practices') return { ...practiceFromRow(row as PracticeRow), ...interactions, reviews };
-  const result = await db.prepare(`SELECT practices.*, i.id AS item_id, ${personalTotalSql} FROM practice_collection_items i JOIN practices ON practices.id = i.practice_id WHERE i.collection_id = ? ORDER BY i.position`).bind(id).all<PracticeRow>();
+  const result = await db.prepare(`SELECT practices.*, i.id AS item_id, ${personalTotalSql}, ${todayTotalSql} FROM practice_collection_items i JOIN practices ON practices.id = i.practice_id WHERE i.collection_id = ? ORDER BY i.position`).bind(date, id).all<PracticeRow>();
   const items = (result.results ?? []).map(practiceFromRow);
   const saved = await db.prepare('SELECT r.id, i.target, COALESCE(c.total, 0) AS total FROM practice_runs r JOIN practice_run_items i ON i.run_id = r.id LEFT JOIN counters c ON c.id = i.practice_id AND c.device_id = r.owner_id WHERE r.owner_id = ? AND r.collection_id = ? AND r.is_current = 1 ORDER BY i.item_index')
     .bind(owner, id).all<{ id: string; target: number; total: number }>();
@@ -117,9 +117,9 @@ async function itemStatements(db: D1Database, owner: string, id: string, ids: st
   return [db.prepare("INSERT INTO practice_collection_items (id, collection_id, practice_id, position) SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.practiceId'), json_extract(value, '$.position') FROM json_each(?)").bind(id, JSON.stringify(items))];
 }
 
-export async function listCollections(db: D1Database, owner: string): Promise<Collection[]> {
+export async function listCollections(db: D1Database, owner: string, date: string): Promise<Collection[]> {
   const rows = await db.prepare('SELECT id FROM practice_collections WHERE owner_id = ? ORDER BY created_at, id').bind(owner).all<{ id: string }>();
-  return Promise.all((rows.results ?? []).map(async (row) => await ownedContent(db, 'collections', row.id, owner) as Collection));
+  return Promise.all((rows.results ?? []).map(async (row) => await ownedContent(db, 'collections', row.id, owner, date) as Collection));
 }
 
 export async function createCollection(db: D1Database, owner: string, body: unknown): Promise<Collection> {

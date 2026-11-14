@@ -106,12 +106,12 @@
   .count-row-total { font-size: 19px; color: rgb(var(--c-ink-soft)); }
   .count-row-sep { color: rgb(var(--c-muted)); font-size: 14px; margin: 0 2px; }
   .count-progress { width: min(240px, 72%); margin: 14px auto 0; }
-  .count-progress-track { height: 3px; border-radius: 3px; background: rgb(var(--c-ink) / .10); overflow: hidden; }
-  .count-progress-track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, rgb(var(--c-accent) / .55), rgb(var(--c-accent))); transition: width 260ms ease-out; }
+  .count-progress-track { height: 4px; border-radius: 4px; background: rgb(var(--c-ink) / .18); box-shadow: inset 0 0 0 1px rgb(var(--c-ink) / .06); overflow: hidden; }
+  .count-progress-track i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, rgb(var(--c-accent) / .55), rgb(var(--c-accent))); transition: width 260ms ease-out; }
   .count-progress .count-progress-meta { margin: 6px 0 0; text-align: center; font-size: 11px; letter-spacing: .04em; color: rgb(var(--c-muted)); font-variant-numeric: tabular-nums; }
   .count-progress { width: min(240px, 68%); margin: 18px auto 0; }
   .count-progress-track { height: 3px; border-radius: 3px; background: rgb(var(--c-line)); overflow: hidden; }
-  .count-progress-track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, rgb(var(--c-accent)), rgb(var(--c-accent) / .55)); transition: width 240ms ease-out; }
+  .count-progress-track i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, rgb(var(--c-accent)), rgb(var(--c-accent) / .55)); transition: width 240ms ease-out; }
   .count-progress-meta { margin-top: 8px; text-align: right; font-size: 11px; letter-spacing: .02em; color: rgb(var(--c-muted)); font-variant-numeric: tabular-nums; }
   .counter-row { display: flex; align-items: center; gap: 12px; padding: 22px 0; border-bottom: 1px solid var(--c-line); }
   .counter-number { width: 28px; flex-shrink: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: rgb(var(--c-muted)); }

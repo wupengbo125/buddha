@@ -140,6 +140,7 @@
 .levelRow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--c-line); }
 .levelNo { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: rgb(var(--c-ink-soft)); border: 1px solid var(--c-line); flex: none; }
 .levelRow b { display: block; font-weight: 500; font-size: 14px; line-height: 1.4; }
+.levelCurrent .number { color: rgb(var(--c-accent)); font-weight: 600; }
 .levelChips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .chip { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 12px; border: 1px dashed var(--c-line); border-radius: 999px; background: none; font-size: 13px; color: rgb(var(--c-ink-soft)); }
 .chip:hover { border-style: solid; color: rgb(var(--c-ink)); }
