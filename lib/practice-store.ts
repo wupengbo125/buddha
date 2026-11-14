@@ -32,7 +32,7 @@ export interface ContentRow {
   published_at: string | null;
 }
 type PracticeRow = ContentRow & { recitation: string; prompts: string; target: number; item_id?: string; personal_total?: number };
-const personalTotalSql = '(SELECT COALESCE(SUM(count), 0) FROM practice_personal_counts WHERE practice_id = practices.id AND owner_id = practices.owner_id) + COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
+const personalTotalSql = 'COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
 
 export async function atomic(db: D1Database, statements: D1PreparedStatement[]) {
   if (!db.batch) throw new Error('D1 batch is required');

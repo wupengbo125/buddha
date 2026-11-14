@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   if (!(await requireSession(req))) return jsonError('未登录', 401);
   try {
     const { DB } = getEnv();
-    const res = await DB.prepare(`${SELECT_COUNTER} WHERE id IN (SELECT id FROM practices WHERE owner_id = ?) ORDER BY created_at ASC, id ASC`).bind(OWNER_ID).all<Counter>();
+    const res = await DB.prepare('SELECT c.id, c.device_id, c.name, c.caption, c.total, c.today, c.today_date, c.sound_enabled, c.created_at, c.updated_at, p.name AS title FROM counters c LEFT JOIN practices p ON p.id = c.id WHERE c.id IN (SELECT id FROM practices WHERE owner_id = ?) ORDER BY c.created_at ASC, c.id ASC').bind(OWNER_ID).all<Counter>();
     return NextResponse.json({ counters: res.results ?? [] });
   } catch {
     return jsonError('获取计数器失败', 500);

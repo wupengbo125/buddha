@@ -29,19 +29,14 @@ export async function sessionState(db: D1Database, owner: string, date: string):
   const results = await atomic(db, [
     db.prepare('SELECT r.*, s.revision FROM practice_sessions s LEFT JOIN practice_runs r ON r.id = s.run_id AND r.owner_id = s.owner_id WHERE s.owner_id = ?').bind(owner),
     db.prepare('SELECT i.item_index, i.count FROM practice_run_items i JOIN practice_sessions s ON s.run_id = i.run_id WHERE s.owner_id = ? ORDER BY i.item_index').bind(owner),
-    db.prepare(`SELECT COALESCE(SUM(total), 0) AS total, COALESCE(SUM(today), 0) AS today FROM (
-      SELECT total, CASE WHEN today_date = ? THEN today ELSE 0 END AS today FROM counters WHERE device_id = ?
-      UNION ALL
-      SELECT count AS total, CASE WHEN date = ? THEN count ELSE 0 END AS today FROM practice_daily_counts WHERE owner_id = ?
-    )`).bind(date, owner, date, owner),
-    db.prepare('SELECT p.practice_id AS id, SUM(p.count) AS total FROM practice_personal_counts p WHERE p.owner_id = ? GROUP BY p.practice_id').bind(owner),
-    db.prepare(`SELECT p.practice_id AS id, p.count AS today FROM practice_personal_counts p WHERE p.owner_id = ? AND p.date = ?
-      UNION ALL SELECT c.id AS id, c.today AS today FROM counters c WHERE c.device_id = ? AND c.today_date = ?`).bind(owner, date, owner, date),
+    db.prepare('SELECT COALESCE(SUM(total), 0) AS total, COALESCE(SUM(CASE WHEN today_date = ? THEN today ELSE 0 END), 0) AS today FROM counters WHERE device_id = ?').bind(date, owner),
+    db.prepare('SELECT id, total, today, today_date FROM counters WHERE id IN (SELECT id FROM practices WHERE owner_id = ?)').bind(owner),
   ]);
   const row = results[0].results?.[0] as (RunRow & { revision: number }) | undefined;
   const stats = results[2].results?.[0] as { today: number; total: number };
-  const perPracticeToday = new Map((results[4].results as { id: string; today: number }[] | undefined ?? []).map((item) => [item.id, item.today]));
-  const perPracticeTotal = new Map((results[3].results as { id: string; total: number }[] | undefined ?? []).map((item) => [item.id, item.total]));
+  const counterRows = results[3].results as { id: string; total: number; today: number; today_date: string }[] | undefined ?? [];
+  const perPracticeToday = new Map(counterRows.map((item) => [item.id, item.today_date === date ? item.today : 0]));
+  const perPracticeTotal = new Map(counterRows.map((item) => [item.id, item.total]));
   let active: Run | null = null;
   if (row?.id) {
     const snapshot = JSON.parse(row.snapshot) as Collection;

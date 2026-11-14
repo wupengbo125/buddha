@@ -11,6 +11,7 @@ export interface Counter {
   sound_enabled: number; // 每项目独立音效开关：1 开 / 0 关，存 D1 跟账号走
   created_at: string;
   updated_at: string;
+  title?: string; // 任务标题（发愿名），name 是佛号
 }
 
 export interface TapResult {

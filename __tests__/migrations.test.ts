@@ -9,7 +9,7 @@ const schemaSql = files.map((f) => fs.readFileSync(path.join(migrationsDir, f), 
 
 describe('迁移按序读取', () => {
   it('多个迁移按文件名排序，0002 在 0001 之后', () => {
-    expect(files).toEqual(['0001_init.sql', '0002_add_sound.sql', '0003_practices.sql', '0004_unify_practices.sql']);
+    expect(files).toEqual(['0001_init.sql', '0002_add_sound.sql', '0003_practices.sql', '0004_unify_practices.sql', '0005_practice_counter_sync.sql']);
   });
 
   it('0001 不含 sound_enabled（已应用的迁移禁止改动）', () => {
