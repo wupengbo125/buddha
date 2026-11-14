@@ -286,10 +286,6 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
           <p className={styles.meta}>{'items' in item ? `共 ${item.items.length} 关${item.progress ? ` · 现在在第 ${Math.min(item.progress.index + 1, item.items.length)} 关` : ' · 未开始'}` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`}</p>
 
           <div className={styles.actions}>
-            {'items' in item
-              ? <button type="button" className="primary-button" disabled={busy || item.items.length === 0} onClick={() => sessionAction('start', item.id)}><Play size={16} />{active?.collection_id === item.id && active.completed ? '已完成' : '开始'}</button>
-              : <button type="button" className="primary-button" disabled={busy} onClick={() => startPractice(item)}><Play size={16} />开始</button>}
-            {kind === 'practices' && 'target' in item && <button type="button" className={styles.collect} data-in={collectedIds.has(item.id)} title={`把${item.name}添加到心愿单`} aria-label={`把${item.name}添加到心愿单`} aria-haspopup="dialog" disabled={busy} onClick={() => setCollecting(item)}>{collectedIds.has(item.id) ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}</button>}
             <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><MoreHorizontal size={18} /></button>
           </div>
           {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
@@ -304,6 +300,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <div className={styles.sheetGrab} />
         <p className={styles.sheetK}>可以做什么</p>
         <h2 className={styles.sheetTitle}>{menu.name}</h2>
+        {'items' in menu
+          ? <button type="button" className={styles.sheetRow} disabled={busy || menu.items.length === 0} onClick={() => { setMenu(null); sessionAction('start', menu.id); }}><Play size={18} />{active?.collection_id === menu.id && active.completed ? '已完成' : '开始'}</button>
+          : <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setMenu(null); startPractice(menu); }}><Play size={18} />开始</button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
         {!('items' in menu) && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setCollecting(menu); setMenu(null); }}><Bookmark size={18} />添加到心愿单<span className={styles.sheetHint}>放进某一集</span></button>}

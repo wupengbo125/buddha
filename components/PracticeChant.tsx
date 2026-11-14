@@ -13,7 +13,6 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
   const [session, setSession] = useState(initial);
   const [caption, setCaption] = useState<CaptionData | null>(null);
   const [error, setError] = useState('');
-  const [pending, setPending] = useState(0);
   const [stageDone, setStageDone] = useState(false);
   const current = useRef(initial);
   const queue = useRef<{ eventId: string; runId: string; itemIndex: number; date: string }[]>([]);
@@ -65,11 +64,10 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
         }
         queue.current.shift();
         showState(result);
-        if (mounted.current) { setPending(queue.current.length); setError(''); }
+        if (mounted.current) { setError(''); }
       }
     } catch (failure) {
       if (mounted.current) {
-        setPending(queue.current.length);
         setError(`${failure instanceof Error ? failure.message : '敲击尚未同步'}${queue.current.length ? '，请保持页面打开' : ''}`);
       }
       if (queue.current.length) retry.current = setTimeout(flush, 1500);
@@ -131,7 +129,6 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
     current.current = projected;
     setSession(projected);
     queue.current.push(event);
-    setPending(queue.current.length);
     void flush();
   };
 
@@ -164,7 +161,7 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
         <span className="practice-progress-n">{displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声 · 今日 {session.stats.today.toLocaleString()}</span>
       </div>}
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}
-      {pending > 0 && <p className="text-sm text-muted" role="status">正在同步 {pending} 声</p>}
+
       {error && <p className="error-message" role="alert">{error}</p>}
     </section>
   );
