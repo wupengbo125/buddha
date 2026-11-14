@@ -123,9 +123,10 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
     const completed = finished && active.index === active.items.length - 1;
     const index = active.index;
     if (finished && !completed) setStageDone(true);
+    const items = active.items.map((entry, position) => position === active.index ? { ...entry, today_total: (entry.today_total ?? 0) + 1 } : entry);
     const projected = { ...current.current,
       stats: { today: current.current.stats.today + 1, total: current.current.stats.total + 1 },
-      active: { ...active, counts, index, completed, count: counts[index], total: active.total + 1 } };
+      active: { ...active, items, counts, index, completed, count: counts[index], total: active.total + 1 } };
     current.current = projected;
     setSession(projected);
     queue.current.push(event);
@@ -145,7 +146,6 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
   return (
     <section className="chant-center" aria-label="当前发愿">
       {run.completed && <div className="practice-chant-heading"><h1 className="practice-chant-name">本次念诵完成</h1></div>}
-      {!run.completed && <p className="practice-recitation">{practice?.recitation}</p>}
       <div className="fish-stage">
         <div className="chant-caption" aria-live="off">{caption && <Caption key={caption.token} data={caption} />}</div>
         <WoodenFish onTap={tap} disabled={run.completed || stageDone} />
@@ -156,9 +156,13 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
           <button type="button" className="primary-button" onClick={advance}>进入第 {run.index + 2} 关</button>
         </div>}
       </div>
-      {!run.completed && <div className="practice-progress">
-        <progress value={displayed} max={practice?.target} aria-label="当前发愿进度" />
-        <span className="practice-progress-n">{displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声 · 今日 {((practice as { today_total?: number } | undefined)?.today_total ?? 0).toLocaleString()}</span>
+      {!run.completed && <div className="count-row" aria-label={`今日 ${practice?.today_total ?? 0} 声，累计 ${practice?.personal_total ?? 0} 声`}>
+        <span className="count-row-label">今日</span>
+        <span className="count-row-num count-row-today">{(practice?.today_total ?? 0).toLocaleString()}</span>
+        <span className="count-row-sep">/</span>
+        <span className="count-row-label">累计</span>
+        <span className="count-row-num count-row-total">{(practice?.personal_total ?? 0).toLocaleString()}</span>
+        <span className="count-row-label">声</span>
       </div>}
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}
 

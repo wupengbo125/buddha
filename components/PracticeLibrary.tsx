@@ -82,6 +82,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const [menu, setMenu] = useState<PracticeContent | null>(null);
   const [collecting, setCollecting] = useState<Practice | null>(null);
   const [foldOpen, setFoldOpen] = useState(false);
+  const [publicFoldOpen, setPublicFoldOpen] = useState(false);
 
   function showError(failure: unknown) {
     setError(failure instanceof Error ? failure.message : '操作失败');
@@ -115,7 +116,8 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const allItems = kind === 'practices' ? practices : collections;
   const foldDone = allItems.filter((entry) => 'items' in entry ? Boolean(entry.progress?.completed) : (entry.personal_total ?? 0) >= entry.target);
   const entityName = kind === 'practices' ? '发愿' : '发愿集';
-  const items = allItems.filter((entry) => !foldDone.some((done) => done.id === entry.id));
+  const statusFold = allItems.filter((entry) => entry.visibility === 'public' && !foldDone.some((done) => done.id === entry.id));
+  const items = allItems.filter((entry) => entry.visibility !== 'public' && !foldDone.some((done) => done.id === entry.id));
   const collectedIds = new Set(collections.flatMap((collection) => collection.items.map((entry) => entry.id)));
   const endpoint = kind === 'practices' ? '/api/practices' : '/api/practice-collections';
   const editingItem = editor?.id ? items.find((entry) => entry.id === editor.id) : undefined;
@@ -230,6 +232,18 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     }
   }
 
+  const renderCard = (item: PracticeContent) => (
+    <li className={styles.contentRow} key={item.id}>
+      <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2></div>
+          <p className={styles.meta}><span className={styles.visTag} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span>{'items' in item ? `共 ${item.items.length} 关${item.progress ? ` · 现在在第 ${Math.min(item.progress.index + 1, item.items.length)} 关` : ' · 未开始'}` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`}</p>
+
+          <div className={styles.actions}>
+            <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><MoreHorizontal size={18} /></button>
+          </div>
+          {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
+    </li>
+  );
+
   return (
     <main className={`page ${styles.root}`}>
       <header className="page-header">
@@ -280,16 +294,14 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
 
   {confirmation && <div className={styles.confirmOverlay} onClick={() => !busy && setConfirmation(null)}><section className={styles.confirmation} onClick={(event) => event.stopPropagation()} aria-labelledby="confirmation-title"><h2 id="confirmation-title">{confirmation.action === 'delete' ? '删除' : '重新开始'}「{confirmation.item.name}」？</h2><p>{confirmation.action === 'delete' ? references.length > 0 ? '此发愿仍被发愿集引用。' : kind === 'practices' ? '发愿将被删除。' : '发愿集与个人进度将被删除，发愿保留。' : '本轮进度将清零，使用当前内容重新开始。'}</p>{references.map((collection) => <Link key={collection.id} className={styles.textLink} href={`/practice-collections?edit=${encodeURIComponent(collection.id)}`}>{collection.name}<Pencil size={14} /></Link>)}<div className={styles.actions}><button type="button" disabled={busy} className="secondary-button" onClick={() => setConfirmation(null)}>取消</button><button type="button" disabled={busy || references.length > 0} className="primary-button" onClick={() => confirmation.action === 'delete' ? mutate(confirmation.item, 'delete') : sessionAction('restart', confirmation.item.id)}>{confirmation.action === 'delete' ? <Trash2 size={17} /> : <RotateCcw size={17} />}{busy ? '正在处理...' : '确认'}</button></div></section></div>}
 
-      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && !error ? <div className="empty-state"><p>暂无{entityName}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增{entityName}</button></div> : (
-        <ul className={styles.contentList}>{items.map((item) => <li className={styles.contentRow} key={item.id}>
-          <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>{kind === 'practices' && <span className={styles.pubLabel} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span>}{kind !== 'practices' && <span className={styles.badge} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span>}</div>
-          <p className={styles.meta}>{'items' in item ? `共 ${item.items.length} 关${item.progress ? ` · 现在在第 ${Math.min(item.progress.index + 1, item.items.length)} 关` : ' · 未开始'}` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`}</p>
-
-          <div className={styles.actions}>
-            <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><MoreHorizontal size={18} /></button>
-          </div>
-          {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
-        </li>)}</ul>
+      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && statusFold.length === 0 && !error ? <div className="empty-state"><p>暂无{entityName}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增{entityName}</button></div> : (
+      <>
+      {statusFold.length > 0 && <section className={styles.fold}>
+        <button type="button" className={styles.foldHead} aria-expanded={publicFoldOpen} onClick={() => setPublicFoldOpen((value) => !value)}><span>已公开 · {statusFold.length}</span><span>{publicFoldOpen ? '收起' : '展开'}{publicFoldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
+        {publicFoldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{statusFold.map(renderCard)}</ul>}
+      </section>}
+      <ul className={styles.contentList}>{items.map(renderCard)}</ul>
+      </>
       )}
       {!loading && foldDone.length > 0 && <section className={styles.fold}>
         <button type="button" className={styles.foldHead} aria-expanded={foldOpen} onClick={() => setFoldOpen((value) => !value)}><span>已完成 · {foldDone.length}</span><span>{foldOpen ? '收起' : '展开'}{foldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>

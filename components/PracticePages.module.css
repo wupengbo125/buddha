@@ -8,6 +8,9 @@
 .sessionBar p { font-size: 14px; margin-top: 4px; }
 .progress { width: 100%; max-width: 220px; height: 4px; accent-color: rgb(var(--c-accent)); display: block; margin-top: 8px; border: 0; }
 .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.visTag { margin-right: 6px; padding: 0 5px; border: 1px solid var(--c-line); border-radius: 4px; font-size: 11px; line-height: 1.5; color: rgb(var(--c-muted)); }
+.visTag[data-status='public'] { color: rgb(var(--c-accent)); border-color: rgb(var(--c-accent) / .35); }
+.visTag[data-status='rejected'] { color: rgb(var(--c-danger)); border-color: rgb(var(--c-danger) / .35); }
 .meta { color: rgb(var(--c-muted)); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .notice { font-size: 13px; color: rgb(var(--c-accent)); line-height: 1.7; }
 .notice:not(:empty) { padding: 12px 0; }
