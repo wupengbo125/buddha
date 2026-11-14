@@ -267,27 +267,35 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
 
       {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && !error ? <div className="empty-state"><p>暂无{entityName}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增{entityName}</button></div> : (
         <ul className={styles.contentList}>{items.map((item) => <li className={styles.contentRow} key={item.id}>
-          <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2><span className={styles.badge} data-status={item.visibility}>{item.visibility === 'private' ? <Lock size={12} /> : item.visibility === 'public' ? <Globe size={12} /> : null}{visibilityLabels[item.visibility]}</span></div>
+          <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>{kind === 'practices' ? <div className={styles.pub}><span className={styles.pubLabel} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span><button type="button" className={styles.switch} data-status={item.visibility} role="switch" aria-checked={item.visibility === 'public' || item.visibility === 'pending'} aria-label={`${item.name} 是否公开到广场`} disabled={busy} title={item.visibility === 'public' ? '从广场撤下' : item.visibility === 'pending' ? '撤回送审' : item.visibility === 'rejected' ? '修改后重新送审' : '公开到广场'} onClick={() => mutate(item, item.visibility === 'public' || item.visibility === 'pending' ? 'unpublish' : 'publish')}><i /></button></div> : <span className={styles.badge} data-status={item.visibility}>{item.visibility === 'private' ? <Lock size={12} /> : item.visibility === 'public' ? <Globe size={12} /> : null}{visibilityLabels[item.visibility]}</span>}</div>
           {item.description && <p className={styles.description}>{item.description}</p>}
-          <p className={styles.meta}>{'items' in item ? `${item.items.length} 项 · ${item.total_target.toLocaleString()} 次` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`} · 作者 {item.owner_id}</p>
-                    {item.source_name && <p className={styles.meta}>来源：{item.source_name}{item.source_owner_id && ` · 作者 ${item.source_owner_id}`}</p>}
+          <p className={styles.meta}>{'items' in item ? `${item.items.length} 项 · ${item.total_target.toLocaleString()} 次` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`}</p>
+                    {item.source_name && <p className={styles.meta}>来源：{item.source_name}</p>}
           {item.visibility === 'rejected' && <p className="error-message">审核未通过</p>}
           {'items' in item && item.visibility !== 'public' && item.items.some((practice) => practice.visibility !== 'public') && <div className={styles.reviewLinks}><span className={styles.meta}>尚未公开的发愿</span>{Array.from(new Map(item.items.filter((practice) => practice.visibility !== 'public').map((practice) => [practice.id, practice])).values()).map((practice) => <Link key={practice.id} href={`/practices?edit=${encodeURIComponent(practice.id)}`} className={styles.textLink}>{practice.name}<ExternalLink size={13} /></Link>)}</div>}
           <div className={styles.actions}>
-                        {'items' in item && <button type="button" className="primary-button" disabled={busy || item.items.length === 0} onClick={() => sessionAction('start', item.id)}><Play size={16} />{active?.collection_id === item.id && active.completed ? '查看完成' : '开始 / 继续'}</button>}
-            {!('items' in item) && <button type="button" className="primary-button" disabled={busy} onClick={() => startPractice(item)}><Play size={16} />开始念诵</button>}
-            <button type="button" className="icon-button" title={`编辑${item.name}`} aria-label={`编辑${item.name}`} disabled={busy} onClick={() => { setEditor(makeEditor(item)); setConfirmation(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Pencil size={18} /></button>
-            <button type="button" className="icon-button" title={`复制${item.name}`} aria-label={`复制${item.name}`} disabled={busy} onClick={() => mutate(item, 'copy')}><Copy size={18} /></button>
-            <button type="button" className="icon-button" title={expanded === item.id ? '收起详情' : '查看详情'} aria-label={`${expanded === item.id ? '收起' : '查看'}${item.name}详情`} aria-expanded={expanded === item.id} onClick={() => setExpanded(expanded === item.id ? null : item.id)}>{expanded === item.id ? <ChevronUp size={19} /> : <ChevronDown size={19} />}</button>
-            <button type="button" className={`icon-button ${styles.danger}`} title={`删除${item.name}`} aria-label={`删除${item.name}`} disabled={busy} onClick={() => { setConfirmation({ item, action: 'delete' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Trash2 size={18} /></button>
+            {'items' in item
+              ? <button type="button" className="primary-button" disabled={busy || item.items.length === 0} onClick={() => sessionAction('start', item.id)}><Play size={16} />{active?.collection_id === item.id && active.completed ? '查看完成' : '开始 / 继续'}</button>
+              : <button type="button" className="primary-button" disabled={busy} onClick={() => startPractice(item)}><Play size={16} />{(item.personal_total ?? 0) > 0 ? '继续念诵' : '开始念诵'}</button>}
+            <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><MoreHorizontal size={18} /></button>
           </div>
-          {(item.visibility === 'public' || 'items' in item) && <div className={styles.actions}>
-            {item.visibility === 'public' && <button type="button" className="icon-button" title="复制分享链接" aria-label={`分享${item.name}`} onClick={() => share(item)}><Share2 size={18} /></button>}
-            {'items' in item && <button type="button" className="icon-button" title="重新开始" aria-label={`重新开始${item.name}`} disabled={busy} onClick={() => { setConfirmation({ item, action: 'restart' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><RotateCcw size={18} /></button>}
-          </div>}
           {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
         </li>)}</ul>
       )}
+      {menu && <div className={styles.scrim} onClick={() => setMenu(null)} />}
+      {menu && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label={`${menu.name} 的更多操作`}>
+        <div className={styles.sheetGrab} />
+        <p className={styles.sheetK}>这一页可以做什么</p>
+        <h2 className={styles.sheetTitle}>{menu.name}</h2>
+        <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑这一页<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
+        <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制一份<span className={styles.sheetHint}>含提示与目标</span></button>
+        <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setExpanded(expanded === menu.id ? null : menu.id); setMenu(null); }}>{expanded === menu.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}{expanded === menu.id ? '收起详情' : '查看详情'}<span className={styles.sheetHint}>{'items' in menu ? '按顺序排的几项' : '完整念诵与提示'}</span></button>
+        {menu.visibility === 'public' && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { share(menu); setMenu(null); }}><Share2 size={18} />复制分享链接<span className={styles.sheetHint}>复制链接</span></button>}
+        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'restart' }); setMenu(null); }}><RotateCcw size={18} />重新开始<span className={styles.sheetHint}>清零本轮进度</span></button>}
+        <button type="button" className={`${styles.sheetRow} ${styles.sheetDanger}`} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'delete' }); setMenu(null); }}><Trash2 size={18} />删除这一页<span className={styles.sheetHint}>不可恢复</span></button>
+        <button type="button" className={styles.sheetCancel} onClick={() => setMenu(null)}>取消</button>
+      </div>}
+
     </main>
   );
 }

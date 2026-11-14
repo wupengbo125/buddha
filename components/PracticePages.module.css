@@ -11,7 +11,7 @@
 .meta { color: rgb(var(--c-muted)); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .notice { font-size: 13px; color: rgb(var(--c-accent)); line-height: 1.7; }
 .notice:not(:empty) { padding: 12px 0; }
-.editor { padding: 8px 0 24px; border-bottom: 1px solid var(--c-line); }
+
 .sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
 .sectionHeading h2 { font-size: 18px; font-family: 'Songti SC', 'STSong', 'SimSun', serif; }
 .sectionHeading h3 { font-size: 13px; color: rgb(var(--c-ink-soft)); }
@@ -82,3 +82,37 @@
   .orderButtons { margin-left: auto; }
   .tabs { gap: 16px; }
 }
+/* ── 公开位：状态词 + 一个开关。**不是两个按钮。** ── */
+.pub { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.pubLabel { font-size: 11px; letter-spacing: .04em; line-height: 1.4; color: rgb(var(--c-muted)); white-space: nowrap; }
+.pubLabel[data-status='public'] { color: rgb(var(--c-accent)); }
+.pubLabel[data-status='pending'] { color: rgb(var(--c-ink-soft)); letter-spacing: .08em; }
+.pubLabel[data-status='rejected'] { color: rgb(var(--c-danger)); }
+.switch { position: relative; width: 46px; height: 26px; border-radius: 999px; background: rgb(var(--c-muted) / .35); transition: background .2s ease; min-height: 26px; padding: 0; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #FCF9F0; box-shadow: 0 1px 2px rgb(33 28 18 / .22); transition: transform .2s ease, width .2s ease; }
+.switch[data-status='public'] { background: rgb(var(--c-accent)); }
+.switch[data-status='pending'] { background: rgb(var(--c-ink-soft)); }
+.switch[data-status='public'] i { transform: translateX(20px); }
+.switch[data-status='pending'] i { transform: translateX(11px); width: 15px; border-radius: 999px; }
+.switch:disabled { opacity: .5; }
+.switch:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+
+/* ── 每条一个主按钮 + 一个「⋯」。其余动作进面板。 ── */
+.more { margin-left: auto; width: 38px; height: 38px; min-height: 38px; display: grid; place-items: center; border: 1px solid var(--c-line); border-radius: 6px; color: rgb(var(--c-ink-soft)); background: none; }
+.more:hover { background: rgb(var(--c-surface)); }
+
+/* ── 操作面板：贴底，四行，删除是红的 ── */
+.scrim { position: fixed; inset: 0; background: rgb(25 22 15 / .42); z-index: 60; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; background: rgb(var(--c-bg)); border-radius: 16px 16px 0 0; padding: 10px 0 calc(env(safe-area-inset-bottom) + 14px); box-shadow: 0 -18px 40px -20px rgb(30 25 15 / .45); }
+.sheetGrab { width: 38px; height: 4px; border-radius: 2px; background: var(--c-line); margin: 2px auto 8px; }
+.sheetK { font-size: 10px; letter-spacing: .16em; color: rgb(var(--c-muted)); padding: 0 20px; }
+.sheetTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 18px; font-weight: 400; padding: 3px 20px 12px; border-bottom: 1px solid var(--c-line); overflow-wrap: anywhere; }
+.sheetRow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 20px; min-height: 50px; font-size: 14.5px; text-align: left; background: none; border: 0; color: rgb(var(--c-ink)); }
+.sheetRow:hover { background: rgb(var(--c-surface)); }
+.sheetHint { margin-left: auto; font-size: 11.5px; color: rgb(var(--c-muted)); }
+.sheetDanger { color: rgb(var(--c-danger)); }
+.sheetCancel { width: calc(100% - 32px); margin: 10px 16px 0; min-height: 46px; border-top: 1px solid var(--c-line); font-size: 14px; color: rgb(var(--c-ink-soft)); background: none; border-left: 0; border-right: 0; border-bottom: 0; }
+
+/* ── 编辑：整页浮层，列表不跳、不滚顶 ── */
+.editor { position: fixed; inset: 0; z-index: 62; overflow-y: auto; background: rgb(var(--c-bg)); padding: 0 20px 28px; }
+.editor .sectionHeading { position: sticky; top: 0; z-index: 1; background: rgb(var(--c-bg)); padding-top: 10px; }
