@@ -121,7 +121,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const items = allItems.filter((entry) => entry.visibility !== 'public' && !foldDone.some((done) => done.id === entry.id));
   const collectedIds = new Set(collections.flatMap((collection) => collection.items.map((entry) => entry.id)));
   const endpoint = kind === 'practices' ? '/api/practices' : '/api/practice-collections';
-  const editingItem = editor?.id ? items.find((entry) => entry.id === editor.id) : undefined;
+  const editingItem = editor?.id ? allItems.find((entry) => entry.id === editor.id) : undefined;
   const references = kind === 'practices' && confirmation?.action === 'delete'
     ? collections.filter((collection) => collection.items.some((practice) => practice.id === confirmation.item.id)) : [];
 
