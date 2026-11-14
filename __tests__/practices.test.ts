@@ -366,7 +366,7 @@ describe('practice API', () => {
     expect((await readJson<PracticeSessionState>(otherResponse))).toMatchObject({ active: null, stats: { today: 50, total: 100 } });
   });
 
-  it('resumes frozen runs across edits, switching and dates, and only explicit restart uses current content', async () => {
+  it('resumes runs across edits, switching and dates with live content and saved progress', async () => {
     const { practice, collection } = await seed(3);
     const other = await seed(1);
     const session = await import('@/app/api/practice-session/route');
@@ -392,8 +392,8 @@ describe('practice API', () => {
     expect(resumedResponse.status).toBe(200);
     const resumed = await readJson<ActiveSession>(resumedResponse);
     expect(resumed.active.id).toBe(runId);
-    expect(resumed.active.items[0].target).toBe(3);
-    expect(resumed.active.items[0].recitation).toBe('recitation');
+    expect(resumed.active.items[0].target).toBe(7);
+    expect(resumed.active.items[0].recitation).toBe('new');
     expect(resumed.active.collection_name).toBe('collection');
     expect(resumed.active.counts).toEqual([1, 0]);
     expect((await action('restart', collection.id)).status).toBe(409);

@@ -31,11 +31,11 @@ export async function sessionState(db: D1Database, owner: string, date: string):
     db.prepare('SELECT i.item_index, i.count FROM practice_run_items i JOIN practice_sessions s ON s.run_id = i.run_id WHERE s.owner_id = ? ORDER BY i.item_index').bind(owner),
     db.prepare('SELECT COALESCE(SUM(total), 0) AS total, COALESCE(SUM(CASE WHEN today_date = ? THEN today ELSE 0 END), 0) AS today FROM counters WHERE device_id = ?').bind(date, owner),
     db.prepare('SELECT id, total, today, today_date FROM counters WHERE id IN (SELECT id FROM practices WHERE owner_id = ?)').bind(owner),
-    db.prepare('SELECT id, prompts FROM practices WHERE owner_id = ?').bind(owner),
+    db.prepare('SELECT id, name, recitation, prompts, target FROM practices WHERE owner_id = ?').bind(owner),
   ]);
   const row = results[0].results?.[0] as (RunRow & { revision: number }) | undefined;
   const stats = results[2].results?.[0] as { today: number; total: number };
-  const livePrompts = new Map((results[4].results as { id: string; prompts: string }[] | undefined ?? []).map((row) => [row.id, row.prompts]));
+  const liveRows = new Map((results[4].results as { id: string; name: string; recitation: string; prompts: string; target: number }[] | undefined ?? []).map((row) => [row.id, row]));
   const counterRows = results[3].results as { id: string; total: number; today: number; today_date: string }[] | undefined ?? [];
   const perPracticeToday = new Map(counterRows.map((item) => [item.id, item.today_date === date ? item.today : 0]));
   const perPracticeTotal = new Map(counterRows.map((item) => [item.id, item.total]));
@@ -47,10 +47,10 @@ export async function sessionState(db: D1Database, owner: string, date: string):
       id: row.id, collection_id: row.collection_id, collection_name: snapshot.name,
       index: row.item_index, completed: Boolean(row.completed), count: counts[row.item_index],
       items: snapshot.items.map((item) => {
-        const live = livePrompts.get(item.id);
+        const live = liveRows.get(item.id);
         let prompts = item.prompts;
-        if (!prompts.length && live) { try { const parsed = JSON.parse(live) as string[]; if (parsed.length) prompts = parsed; } catch { prompts = item.prompts; } }
-        return { ...item, prompts, today_total: perPracticeToday.get(item.id) ?? 0, personal_total: perPracticeTotal.get(item.id) ?? 0 };
+        if (live) { try { const parsed = JSON.parse(live.prompts) as string[]; prompts = parsed; } catch { prompts = item.prompts; } }
+        return { ...item, name: live?.name ?? item.name, recitation: live?.recitation ?? item.recitation, target: live?.target ?? item.target, prompts, today_total: perPracticeToday.get(item.id) ?? 0, personal_total: perPracticeTotal.get(item.id) ?? 0 };
       }), counts, total: counts.reduce((total, count) => total + count, 0),
     };
   }
