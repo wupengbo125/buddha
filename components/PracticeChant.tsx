@@ -13,7 +13,6 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
   const [session, setSession] = useState(initial);
   const [caption, setCaption] = useState<CaptionData | null>(null);
   const [error, setError] = useState('');
-  const [stageDone, setStageDone] = useState(false);
   const current = useRef(initial);
   const queue = useRef<{ eventId: string; runId: string; itemIndex: number; date: string }[]>([]);
   const sending = useRef(false);
@@ -122,7 +121,6 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
     const finished = counts[active.index] >= item.target;
     const completed = finished && active.index === active.items.length - 1;
     const index = active.index;
-    if (finished && !completed) setStageDone(true);
     const items = active.items.map((entry, position) => position === active.index ? { ...entry, today_total: (entry.today_total ?? 0) + 1 } : entry);
     const projected = { ...current.current,
       stats: { today: current.current.stats.today + 1, total: current.current.stats.total + 1 },
@@ -133,28 +131,11 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
     void flush();
   };
 
-  const advance = () => {
-    setStageDone(false);
-    const active = current.current.active;
-    if (!active) return;
-    const index = active.index + 1;
-    const projected = { ...current.current, active: { ...active, index, count: active.counts[index], completed: false } };
-    current.current = projected;
-    setSession(projected);
-  };
-
   return (
     <section className="chant-center" aria-label="当前发愿">
-      {run.completed && <div className="practice-chant-heading"><h1 className="practice-chant-name">本次念诵完成</h1></div>}
       <div className="fish-stage">
         <div className="chant-caption" aria-live="off">{caption && <Caption key={caption.token} data={caption} />}</div>
-        <WoodenFish onTap={tap} disabled={run.completed || stageDone} />
-        {stageDone && !run.completed && <div className="stage-done" role="status">
-          <p className="stage-done-k">第 {run.index + 1} 关完成</p>
-          <p className="stage-done-n">{practice?.name}</p>
-          <p className="stage-done-s">念满 {practice?.target.toLocaleString()} 声</p>
-          <button type="button" className="primary-button" onClick={advance}>进入第 {run.index + 2} 关</button>
-        </div>}
+        <WoodenFish onTap={tap} disabled={run.completed} />
       </div>
       {!run.completed && <div className="count-row" aria-label={`今日 ${practice?.today_total ?? 0} 声，累计 ${practice?.personal_total ?? 0} 声`}>
         <span className="count-row-label">今日</span>
