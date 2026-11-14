@@ -1,11 +1,8 @@
 'use client';
 
-// 念佛计数逻辑 v6：点一次即乐观 +1 并立即 POST 一次，服务端原子累加为唯一权威。
-// 计数改每次上传：不再有攒批 / pending 批次 / localStorage 对账 / 兜底定时器整套状态机。
-// 失败请求进内存重试队列，沿用同一 event_id 幂等重试；跨零点用轻量零点定时器重拉列表刷新显示。
-
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { storageNamespace } from '@/lib/brand';
 import {
   applyServerTotals,
   createState,
@@ -59,6 +56,8 @@ export function useChant() {
   const settingsRef = useRef<Settings>(defaultSettings());
   const overridesRef = useRef<Record<string, number>>({});
   const retryRef = useRef(new RetryQueue());
+  const storageReady = useRef(false);
+  const inFlight = useRef(new Set<string>());
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionToken = useRef(0);
 
@@ -92,17 +91,21 @@ export function useChant() {
   }
 
   function drainRetry() {
-    const items = retryRef.current.drain();
+    const items = retryRef.current.values();
     for (const it of items) void send(it.counterId, { eventId: it.eventId, date: it.date });
   }
 
   async function send(counterId: string, req: TapRequest): Promise<void> {
+    if (inFlight.current.has(req.eventId)) return;
+    inFlight.current.add(req.eventId);
     try {
       const res = await api.reportTap(counterId, { event_id: req.eventId, date: req.date });
+      retryRef.current.remove(req.eventId);
       reconcile(counterId, res);
     } catch {
-      retryRef.current.add(counterId, req);
       scheduleRetry();
+    } finally {
+      inFlight.current.delete(req.eventId);
     }
   }
 
@@ -114,9 +117,24 @@ export function useChant() {
     commitCounters(list);
     if (resetDisplay) {
       const next: Record<string, CounterState> = {};
-      for (const c of list) next[c.id] = stateFromCounter(c);
+      const date = dateKey(new Date(), settingsRef.current.timeZone);
+      for (const c of list) next[c.id] = stateFromCounter(c, date);
       commitStates(next);
     }
+  }
+
+  async function refreshCounts(): Promise<void> {
+    const { counters: list } = await api.listCounters();
+    commitCounters(list);
+    const date = dateKey(new Date(), loadSettings().timeZone);
+    setStates((previous) => {
+      const next = { ...previous };
+      for (const counter of list) {
+        next[counter.id] = applyServerTotals(previous[counter.id] ?? stateFromCounter(counter, date), counter);
+      }
+      statesRef.current = next;
+      return next;
+    });
   }
 
   // 初始化：设置 / 计数器列表（服务端权威）。不再有 localStorage 对账 / 补推遗留 pending。
@@ -124,18 +142,24 @@ export function useChant() {
     const s = loadSettings();
     settingsRef.current = s;
     overridesRef.current = loadCaptionOverrides();
+    try {
+      retryRef.current = new RetryQueue(window.localStorage, `${storageNamespace}:pending-taps`);
+      retryRef.current.values();
+      storageReady.current = true;
+    } catch {
+      setError('无法读取待同步敲击，请检查浏览器存储设置');
+    }
     void refreshFromServer(true)
+      .then(() => { if (storageReady.current) drainRetry(); })
       .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 重试时机：页面回前台（visibilitychange）+ 跨零点轻量刷新。
-  // 重试只靠内存队列 + 短退避定时器，无任何本地持久化对账。
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState !== 'visible') return;
-      void refreshFromServer(false).catch(() => undefined); // 同步各计数器音效开关
+          void refreshCounts().catch(() => undefined);
       drainRetry();
     };
     document.addEventListener('visibilitychange', onVisibility);
@@ -158,12 +182,22 @@ export function useChant() {
   }, []);
 
   function handleTap(counter: Counter) {
+    if (!storageReady.current) {
+      setError('无法保存敲击，请检查浏览器存储设置');
+      return;
+    }
     settingsRef.current = loadSettings();
     const date = dateKey(new Date(), settingsRef.current.timeZone);
 
     // 乐观 +1 立即刷新 UI（不等待网络），每次点击生成一个全新 event_id 的上报请求。
     const cur = statesRef.current[counter.id] ?? createState(date);
     const { state, request } = tap(cur, date);
+    try {
+      retryRef.current.add(counter.id, request);
+    } catch {
+      setError('无法保存敲击，请检查浏览器存储设置');
+      return;
+    }
     commitStates({ ...statesRef.current, [counter.id]: state });
 
     // 字幕：保持现有行为（文案取计数器字幕，为空取佛号名；时长全局 + 每项目覆盖）。
@@ -185,5 +219,5 @@ export function useChant() {
     if (retryRef.current.size > 0) drainRetry();
   }
 
-  return { counters, states, caption, loading, error, handleTap };
+  return { counters, states, caption, loading, error, handleTap, refreshCounts };
 }

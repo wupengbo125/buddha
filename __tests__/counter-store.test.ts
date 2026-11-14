@@ -12,10 +12,18 @@ describe('显示状态初始化', () => {
   });
 
   it('stateFromCounter 用服务端值初始化（服务端唯一权威）', () => {
-    expect(stateFromCounter({ total: 12, today: 4, today_date: '2026-01-01' })).toEqual({
+    expect(stateFromCounter({ total: 12, today: 4, today_date: '2026-01-01' }, '2026-01-01')).toEqual({
       total: 12,
       today: 4,
       today_date: '2026-01-01',
+    });
+  });
+
+  it('新的一天显示零次但保留累计次数', () => {
+    expect(stateFromCounter({ total: 12, today: 4, today_date: '2026-01-01' }, '2026-01-02')).toEqual({
+      total: 12,
+      today: 0,
+      today_date: '2026-01-02',
     });
   });
 });
@@ -85,5 +93,10 @@ describe('applyServerTotals · 服务端响应校正', () => {
       today: 1,
       today_date: '2026-01-02',
     });
+  });
+
+  it('旧日期响应不会把今天的显示改回昨天', () => {
+    const state = { total: 21, today: 1, today_date: '2026-01-02' };
+    expect(applyServerTotals(state, { total: 20, today: 8, today_date: '2026-01-01' })).toEqual(state);
   });
 });

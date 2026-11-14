@@ -1,7 +1,3 @@
-// 上报失败请求的待重试队列（纯内存纯逻辑，便于单测）。
-// v6 不再把计数状态持久化到 localStorage：计数以服务端为唯一权威，关页面时最多丢弃队列中
-// 尚未上报成功的点击，换取「每次上传」的极简，不重建 localStorage 对账恢复状态机。
-
 import type { TapRequest } from './counter-store';
 
 export interface PendingTap extends TapRequest {
@@ -12,21 +8,66 @@ export interface PendingTap extends TapRequest {
  * 失败重试队列：请求失败时把该次点击原样入队，重试 drain 出来的仍是同一个 {eventId, date}，
  * 沿用同一 event_id 上报 —— 服务端按 event_id 幂等，重试不重复累加。
  */
-export class RetryQueue {
-  private items: PendingTap[] = [];
+export class PendingQueue<Item extends { eventId: string }> {
+  private items: Item[] = [];
+  private rejected: Item[] = [];
+  private order = 0;
 
-  add(counterId: string, req: TapRequest): void {
-    this.items.push({ counterId, ...req });
+  constructor(private storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>, private key = '') {}
+
+  add(item: Item): void {
+    if (this.storage) {
+      this.storage.setItem(`${this.key}:${item.eventId}`, JSON.stringify({ item, time: Date.now(), order: this.order++ }));
+    } else {
+      this.items.push(item);
+    }
   }
 
-  /** 取出并清空全部待重试请求（调用方逐个重发）。 */
-  drain(): PendingTap[] {
-    const out = this.items;
-    this.items = [];
+  values(): Item[] {
+    if (this.storage) {
+      const entries: { item: Item; time: number; order: number }[] = [];
+      for (let index = 0; index < this.storage.length; index++) {
+        const key = this.storage.key(index);
+        if (key?.startsWith(`${this.key}:`)) entries.push(JSON.parse(this.storage.getItem(key)!) as typeof entries[number]);
+      }
+      return entries.sort((first, second) => first.time - second.time || first.order - second.order).map((entry) => entry.item);
+    }
+    return [...this.items];
+  }
+
+  remove(eventId: string): void {
+    if (this.storage) this.storage.removeItem(`${this.key}:${eventId}`);
+    else this.items = this.items.filter((item) => item.eventId !== eventId);
+  }
+
+  reject(item: Item): void {
+    if (this.storage) {
+      new PendingQueue<Item>(this.storage, `${this.key}-rejected`).add(item);
+    } else {
+      this.rejected.push(item);
+    }
+    this.remove(item.eventId);
+  }
+
+  get rejectedSize(): number {
+    return this.storage ? new PendingQueue<Item>(this.storage, `${this.key}-rejected`).size : this.rejected.length;
+  }
+
+  drain(): Item[] {
+    const out = this.values();
+    for (const item of out) this.remove(item.eventId);
     return out;
   }
 
   get size(): number {
-    return this.items.length;
+    return this.values().length;
+  }
+}
+
+export class RetryQueue extends PendingQueue<PendingTap> {
+  add(counterId: string, req: TapRequest): void;
+  add(item: PendingTap): void;
+  add(counterId: string | PendingTap, req?: TapRequest): void {
+    super.add(typeof counterId === 'string' ? { counterId, ...req! } : counterId);
   }
 }

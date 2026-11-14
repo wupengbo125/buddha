@@ -63,4 +63,5 @@ export interface PracticeSessionState {
   stats: { today: number; total: number };
   revision: number;
   date: string;
+  confirmedEventIds?: string[];
 }

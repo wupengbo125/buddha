@@ -94,6 +94,83 @@ describe('practice API', () => {
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ id: practice.id, personal_total: 1 }]);
   });
 
+  it('keeps today counts when older taps arrive from either practice entry', async () => {
+    const { practice, collection } = await seed(10);
+    const counters = await import('@/app/api/counters/route');
+    const singleTaps = await import('@/app/api/counters/[id]/taps/route');
+    const session = await import('@/app/api/practice-session/route');
+    const sessionTaps = await import('@/app/api/practice-session/taps/route');
+    const context = { params: Promise.resolve({ id: practice.id }) };
+    const active = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-14', 'POST', { action: 'start', collectionId: collection.id })));
+    await singleTaps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'today', delta: 1, date: '2026-11-14' }), context);
+    await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', { eventId: 'old-session', runId: active.active.id, itemIndex: 0, date: '2026-11-13' }));
+    await singleTaps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'old-single', delta: 1, date: '2026-11-13' }), context);
+    expect(await readJson(counters.GET(request('counters')))).toMatchObject({
+      counters: [{ id: practice.id, total: 3, today: 1, today_date: '2026-11-14' }],
+    });
+    expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({
+      active: { count: 1, items: [{ today_total: 1, personal_total: 3 }, { today_total: 1, personal_total: 3 }] },
+      stats: { today: 1, total: 3 },
+    });
+  });
+
+  it('can count an unsent tap for its practice after its run was restarted', async () => {
+    const { practice, collection } = await seed(10);
+    const session = await import('@/app/api/practice-session/route');
+    const sessionTaps = await import('@/app/api/practice-session/taps/route');
+    const started = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-14', 'POST', { action: 'start', collectionId: collection.id })));
+    await session.POST(request('practice-session?date=2026-11-14', 'POST', { action: 'restart', collectionId: collection.id }));
+    const event = { eventId: 'stale-tap', runId: started.active.id, itemIndex: 0, date: '2026-11-14' };
+    expect((await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', event))).status).toBe(200);
+    expect((await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', event))).status).toBe(200);
+    expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({
+      active: { count: 0, items: [{ id: practice.id, personal_total: 1 }, { id: practice.id, personal_total: 1 }] },
+      stats: { today: 1, total: 1 },
+    });
+  });
+
+  it('identifies pending events already included in the returned session state', async () => {
+    const { collection } = await seed(10);
+    const session = await import('@/app/api/practice-session/route');
+    const taps = await import('@/app/api/practice-session/taps/route');
+    const started = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-14', 'POST', { action: 'start', collectionId: collection.id })));
+    const event = { runId: started.active.id, itemIndex: 0, date: '2026-11-14' };
+    await taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', { ...event, eventId: 'first' }));
+    await taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', { ...event, eventId: 'second' }));
+    const result = await readJson<PracticeSessionState>(taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', {
+      ...event, eventId: 'first', pendingEventIds: ['first', 'second', 'pending'],
+    })));
+    expect(result).toMatchObject({ active: { count: 2 }, confirmedEventIds: ['first', 'second'] });
+  });
+
+  it('does not acknowledge a tap after its practice was deleted', async () => {
+    const { practice, collection } = await seed();
+    const session = await import('@/app/api/practice-session/route');
+    const taps = await import('@/app/api/practice-session/taps/route');
+    const collections = await import('@/app/api/practice-collections/[id]/route');
+    const practices = await import('@/app/api/practices/[id]/route');
+    const started = await readJson<ActiveSession>(session.POST(request('practice-session', 'POST', { action: 'start', collectionId: collection.id })));
+    await collections.PATCH(request(`practice-collections/${collection.id}`, 'PATCH', { practiceIds: [] }), { params: Promise.resolve({ id: collection.id }) });
+    expect((await practices.DELETE(request(`practices/${practice.id}`, 'DELETE'), { params: Promise.resolve({ id: practice.id }) })).status).toBe(200);
+    const response = await taps.POST(request('practice-session/taps', 'POST', {
+      eventId: 'deleted', runId: started.active.id, itemIndex: 0, date: '2026-11-14',
+    }));
+    expect(response.status).toBe(410);
+    expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({ active: { count: 0 }, stats: { total: 0 } });
+  });
+
+  it('identifies an unsent tap for a deleted collection as permanently unavailable', async () => {
+    const { collection } = await seed();
+    const session = await import('@/app/api/practice-session/route');
+    const taps = await import('@/app/api/practice-session/taps/route');
+    const collections = await import('@/app/api/practice-collections/[id]/route');
+    const started = await readJson<ActiveSession>(session.POST(request('practice-session', 'POST', { action: 'start', collectionId: collection.id })));
+    await collections.DELETE(request(`practice-collections/${collection.id}`, 'DELETE'), { params: Promise.resolve({ id: collection.id }) });
+    expect((await taps.POST(request('practice-session/taps', 'POST', {
+      eventId: 'deleted-run', runId: started.active.id, itemIndex: 0, date: '2026-11-14',
+    }))).status).toBe(410);
+  });
+
   it('keeps canonical content and its backing row coherent through both edit APIs', async () => {
     const { practice } = await seed(7);
     const detail = await import('@/app/api/practices/[id]/route');
@@ -322,17 +399,19 @@ describe('practice API', () => {
     current = await readJson<ActiveSession>(tap('two', 0));
     expect(current.active.index).toBe(1);
     expect(current.active.counts).toEqual([2, 0]);
-    expect((await tap('late', 0)).status).toBe(409);
+    expect((await tap('late', 0)).status).toBe(200);
     expect((await tap('future', 2)).status).toBe(409);
     await Promise.all([tap('three', 1), tap('three', 1)]);
     current = await readJson<ActiveSession>(tap('four', 1));
     expect(current.active.completed).toBe(true);
     expect(current.active.total).toBe(4);
-    expect(current.stats).toEqual({ today: 4, total: 4 });
-    expect((await tap('five', 1)).status).toBe(409);
+    expect(current.stats).toEqual({ today: 5, total: 5 });
+    expect((await tap('five', 1)).status).toBe(200);
     current = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-13', 'POST', { action: 'start', collectionId: collection.id })));
     expect(current.active.id).toBe(runId);
     expect(current.active.completed).toBe(true);
+    expect(current.active.total).toBe(4);
+    expect(current.stats).toEqual({ today: 6, total: 6 });
     state.owner = 'other';
     expect((await tap('stolen', 0)).status).toBe(409);
     expect((await readJson<PracticeSessionState>(session.GET(request('practice-session')))).stats.total).toBe(0);
@@ -387,15 +466,15 @@ describe('practice API', () => {
     await practiceRoute.PATCH(request(`practices/${practice.id}`, 'PATCH', { recitation: 'new', target: 7 }), { params: Promise.resolve({ id: practice.id }) });
     await collectionRoute.PATCH(request(`practice-collections/${collection.id}`, 'PATCH', { name: 'new name', practiceIds: [] }), { params: Promise.resolve({ id: collection.id }) });
     await action('start', other.collection.id);
-    expect((await taps.POST(request('practice-session/taps', 'POST', { ...body, eventId: 'stale' }))).status).toBe(409);
+    expect((await taps.POST(request('practice-session/taps', 'POST', { ...body, eventId: 'stale' }))).status).toBe(200);
     const resumedResponse = await action('start', collection.id);
     expect(resumedResponse.status).toBe(200);
     const resumed = await readJson<ActiveSession>(resumedResponse);
     expect(resumed.active.id).toBe(runId);
-    expect(resumed.active.items[0].target).toBe(7);
+    expect(resumed.active.items[0].target).toBe(3);
     expect(resumed.active.items[0].recitation).toBe('new');
     expect(resumed.active.collection_name).toBe('collection');
-    expect(resumed.active.counts).toEqual([1, 0]);
+    expect(resumed.active.counts).toEqual([2, 0]);
     expect((await action('restart', collection.id)).status).toBe(409);
     await collectionRoute.PATCH(request(`practice-collections/${collection.id}`, 'PATCH', { practiceIds: [practice.id] }), { params: Promise.resolve({ id: collection.id }) });
     const restarted = await readJson<ActiveSession>(action('restart', collection.id));
@@ -404,11 +483,11 @@ describe('practice API', () => {
     expect(restarted.active.counts).toEqual([0]);
     await taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', { eventId: 'new-day', runId: restarted.active.id, itemIndex: 0, date: '2026-11-14' }));
     const latest = await readJson<PracticeSessionState>(session.GET(request('practice-session?date=2026-11-14')));
-    expect(latest.stats).toEqual({ today: 1, total: 2 });
+    expect(latest.stats).toEqual({ today: 1, total: 3 });
     await collectionRoute.DELETE(request(`practice-collections/${collection.id}`, 'DELETE'), { params: Promise.resolve({ id: collection.id }) });
     const removed = await readJson<PracticeSessionState>(session.GET(request('practice-session?date=2026-11-14')));
     expect(removed.active).toBeNull();
-    expect(removed.stats).toEqual({ today: 1, total: 2 });
+    expect(removed.stats).toEqual({ today: 1, total: 3 });
     expect(removed.revision).toBeGreaterThan(latest.revision);
   });
 
@@ -618,10 +697,10 @@ describe('practice API', () => {
     expect(conflicting.map((response) => response.status).sort()).toEqual([200, 409]);
     const restarted = await readJson<ActiveSession>(session.POST(request('practice-session', 'POST', { action: 'restart', collectionId: collection.id })));
     const boundary = await Promise.all(['first', 'second'].map((eventId) => taps.POST(request('practice-session/taps', 'POST', { ...body, eventId, runId: restarted.active.id }))));
-    expect(boundary.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(boundary.map((response) => response.status).sort()).toEqual([200, 200]);
     const current = await readJson<ActiveSession>(session.GET(request('practice-session?date=2026-11-13')));
     expect(current.active.counts).toEqual([1, 0]);
-    expect(current.stats).toEqual({ today: 2, total: 2 });
+    expect(current.stats).toEqual({ today: 3, total: 3 });
     expect((await taps.POST(request('practice-session/taps', 'POST', { ...body, eventId: 'bad-date', date: '2026-02-30' }))).status).toBe(400);
   });
 

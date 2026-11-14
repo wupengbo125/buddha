@@ -23,6 +23,7 @@ export function SettingsClient() {
   const [busy, setBusy] = useState(false);
   const [timeZoneInput, setTimeZoneInput] = useState('Asia/Shanghai');
   const [error, setError] = useState('');
+  const [timeZoneSaved, setTimeZoneSaved] = useState(false);
 
   useEffect(() => {
     setSettings(loadSettings());
@@ -90,6 +91,7 @@ export function SettingsClient() {
   const saveTimeZone = () => {
     try {
       new Intl.DateTimeFormat('zh-CN', { timeZone: timeZoneInput.trim() });
+      setTimeZoneSaved(timeZoneInput.trim() !== settings.timeZone);
       patch({ timeZone: timeZoneInput.trim() });
       setError('');
     } catch {
@@ -112,11 +114,12 @@ export function SettingsClient() {
         </label>
         <label className="mt-3 block">
           <span className="field-label">每日计数时区</span>
-          <input type="text" value={timeZoneInput} onChange={(event) => setTimeZoneInput(event.target.value)} onBlur={saveTimeZone}
+          <input type="text" value={timeZoneInput} onChange={(event) => { setTimeZoneInput(event.target.value); setTimeZoneSaved(false); }} onBlur={saveTimeZone}
             onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} list="timezone-list" className="field" />
           <datalist id="timezone-list"><option value="Asia/Shanghai" /><option value="Asia/Tokyo" /><option value="UTC" /><option value="America/Los_Angeles" /></datalist>
         </label>
         {error && <p className="error-message" role="alert">{error}</p>}
+        {timeZoneSaved && !error && <p className="mt-3 text-xs text-muted" role="status">时区已保存</p>}
       </section>
 
       <section className="section">

@@ -30,7 +30,7 @@ function makeEditor(item?: PracticeContent): Editor {
     name: item?.name ?? '',
     description: item?.description ?? '',
     recitation: item && 'recitation' in item ? item.recitation : '',
-    target: item && 'target' in item ? String(item.target) : '108',
+    target: item && 'target' in item ? String(item.target) : '10000',
     prompts: item && 'prompts' in item ? [...item.prompts] : [],
     practiceIds: item && 'items' in item ? item.items.map((practice) => practice.id) : [],
   };
@@ -235,6 +235,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const renderCard = (item: PracticeContent) => (
     <li className={styles.contentRow} key={item.id}>
       <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>
+        {!('items' in item) && <button type="button" className="icon-button" title={`开始念诵 ${item.name}`} aria-label={`开始念诵 ${item.name}`} disabled={busy} onClick={() => startPractice(item)}><Play size={18} /></button>}
         <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
       </div>
 
@@ -265,11 +266,11 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <div className={styles.sectionHeading}><h2 id="editor-title">{editor.id ? '编辑' : '新增'}{entityName}</h2><button type="button" className="icon-button" disabled={busy} title="关闭编辑" aria-label="关闭编辑" onClick={() => setEditor(null)}><X size={20} /></button></div>
         <form onSubmit={save}>
           <fieldset disabled={busy} className={styles.fields}>
-            <label className={styles.label} htmlFor="practice-name">名称<input id="practice-name" className="field" required value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>
+            <label className={styles.label} htmlFor="practice-name">名称（必填）<input id="practice-name" className="field" required value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>
             <label className={styles.label} htmlFor="practice-description">简介<textarea id="practice-description" className="field" rows={2} value={editor.description} onChange={(event) => setEditor({ ...editor, description: event.target.value })} /></label>
             {kind === 'practices' ? <>
-              <label className={styles.label} htmlFor="practice-recitation">念诵内容<textarea id="practice-recitation" className="field" rows={3} required value={editor.recitation} onChange={(event) => setEditor({ ...editor, recitation: event.target.value })} /></label>
-              <label className={styles.label} htmlFor="practice-target">目标次数<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
+              <label className={styles.label} htmlFor="practice-recitation">念诵内容（必填）<textarea id="practice-recitation" className="field" rows={3} required value={editor.recitation} onChange={(event) => setEditor({ ...editor, recitation: event.target.value })} /></label>
+              <label className={styles.label} htmlFor="practice-target">目标次数（必填）<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
               <div><div className={styles.sectionHeading}><h3>发愿提示</h3></div>
                 <ol className={styles.editList}>{editor.prompts.map((prompt, index) => <li key={index} className={styles.editRow}>
                   <label className={styles.grow}><span className={styles.srOnly}>发愿提示 {index + 1}</span><input className="field" value={prompt} onChange={(event) => setEditor({ ...editor, prompts: editor.prompts.map((value, position) => position === index ? event.target.value : value) })} /></label>
@@ -315,15 +316,15 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
           : <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setMenu(null); startPractice(menu); }}><Play size={18} />开始</button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
-        {!('items' in menu) && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setCollecting(menu); setMenu(null); }}><Bookmark size={18} />添加到心愿单<span className={styles.sheetHint}>放进某一集</span></button>}
+        {!('items' in menu) && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setCollecting(menu); setMenu(null); }}><Bookmark size={18} />加入发愿集<span className={styles.sheetHint}>放进某一集</span></button>}
         {menu.visibility === 'public' && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { share(menu); setMenu(null); }}><Share2 size={18} />复制分享链接<span className={styles.sheetHint}>复制链接</span></button>}
         {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'restart' }); setMenu(null); }}><RotateCcw size={18} />重新开始<span className={styles.sheetHint}>清零本轮进度</span></button>}
         <button type="button" className={`${styles.sheetRow} ${styles.sheetDanger}`} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'delete' }); setMenu(null); }}><Trash2 size={18} />删除<span className={styles.sheetHint}>不可恢复</span></button>
         <button type="button" className={styles.sheetCancel} onClick={() => setMenu(null)}>取消</button>
       {collecting && <div className={styles.scrim} onClick={() => setCollecting(null)} />}
-      {collecting && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="添加到心愿单">
+      {collecting && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="加入发愿集">
         <div className={styles.sheetGrab} />
-        <p className={styles.sheetK}>添加到心愿单</p>
+        <p className={styles.sheetK}>加入发愿集</p>
         <h2 className={styles.sheetTitle}>{collecting.name}</h2>
         {collections.length === 0 && <p className={styles.sheetHint} style={{ padding: '14px 20px' }}>还没有发愿集。先去发愿集页新建一个。</p>}
         {collections.map((collection) => { const inside = collection.items.some((entry) => entry.id === collecting.id); return <button type="button" key={collection.id} className={styles.pickRow} disabled={busy || inside} onClick={() => collectInto(collecting, collection)}><span className={styles.grow}>{collection.name}<span className={styles.meta}> · {collection.items.length} 关</span></span>{inside ? <BookmarkCheck size={16} /> : <Plus size={16} />}</button>; })}

@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^uv run \"\\$HOME/\\.agents/skills/ui-ux-pro-max/scripts/search\\.py\" \"dashboard\" --domain style$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

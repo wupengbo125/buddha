@@ -2,6 +2,59 @@ import { describe, expect, it } from 'vitest';
 import { RetryQueue } from '@/lib/storage';
 
 describe('RetryQueue · 失败重试沿用同一 event_id', () => {
+  it('保留未确认事件供页面重新打开后重试', () => {
+    const data = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => { data.set(key, value); },
+      removeItem: (key: string) => { data.delete(key); },
+      key: (index: number) => [...data.keys()][index] ?? null,
+      get length() { return data.size; },
+    };
+    const first = new RetryQueue(storage, 'pending');
+    first.add('c1', { eventId: 'E1', date: '2026-01-01' });
+    const restored = new RetryQueue(storage, 'pending');
+    expect(restored.values()).toEqual([{ counterId: 'c1', eventId: 'E1', date: '2026-01-01' }]);
+    restored.remove('E1');
+    expect(new RetryQueue(storage, 'pending').size).toBe(0);
+  });
+
+  it('多个页面各自保存和确认事件不会覆盖其他页面的事件', () => {
+    const data = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => { data.set(key, value); },
+      removeItem: (key: string) => { data.delete(key); },
+      key: (index: number) => [...data.keys()][index] ?? null,
+      get length() { return data.size; },
+    };
+    const first = new RetryQueue(storage, 'pending');
+    const second = new RetryQueue(storage, 'pending');
+    first.add('c1', { eventId: 'E1', date: '2026-01-01' });
+    second.add('c1', { eventId: 'E2', date: '2026-01-01' });
+    first.remove('E1');
+    expect(new RetryQueue(storage, 'pending').values()).toEqual([{ counterId: 'c1', eventId: 'E2', date: '2026-01-01' }]);
+  });
+
+  it('保留无法同步的事件，同时让后续事件继续处理', () => {
+    const data = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => { data.set(key, value); },
+      removeItem: (key: string) => { data.delete(key); },
+      key: (index: number) => [...data.keys()][index] ?? null,
+      get length() { return data.size; },
+    };
+    const queue = new RetryQueue(storage, 'pending');
+    queue.add('c1', { eventId: 'E1', date: '2026-01-01' });
+    queue.add('c1', { eventId: 'E2', date: '2026-01-01' });
+    queue.reject(queue.values()[0]);
+    const restored = new RetryQueue(storage, 'pending');
+    expect(restored.values().map((item) => item.eventId)).toEqual(['E2']);
+    expect(restored.rejectedSize).toBe(1);
+    expect(new RetryQueue(storage, 'pending-rejected').values().map((item) => item.eventId)).toEqual(['E1']);
+  });
+
   it('失败请求原样入队，drain 出来仍是同一个 eventId/date/counterId', () => {
     const q = new RetryQueue();
     q.add('c1', { eventId: 'E1', date: '2026-01-01' });

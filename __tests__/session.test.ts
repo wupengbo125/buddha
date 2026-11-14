@@ -1,7 +1,7 @@
 // R1 fail-closed：密码缺失时任何路径都不能登录 / 不能伪造 session 放行；有密码时全流程正常。
 // 测试显式注入 throwaway 密码，不依赖 Cloudflare 上下文。
 import { NextRequest } from 'next/server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getPassword, readSession, verifyToken, createSession } from '@/lib/session';
 import { OWNER_USERNAME, deriveSecret, signSession } from '@/lib/auth';
 import { POST as login } from '@/app/api/auth/login/route';
@@ -15,7 +15,10 @@ function setPassword(v: string | undefined): void {
   else process.env.common_password = v;
 }
 
-afterEach(() => setPassword(ORIGINAL));
+afterEach(() => {
+  setPassword(ORIGINAL);
+  vi.unstubAllEnvs();
+});
 
 function loginRequest(body: unknown): NextRequest {
   return new NextRequest('http://localhost/api/auth/login', {
@@ -63,6 +66,27 @@ describe('R1 · 登录 API 密码缺失 → 500，不生成 session', () => {
     const res = await login(loginRequest({ username: OWNER_USERNAME, password: PW }));
     expect(res.status).toBe(200);
     expect(res.cookies.get(COOKIE)?.value).toBeTruthy();
+  });
+});
+
+describe('本地评估账号', () => {
+  it('仅在明确启用的开发环境中允许登录', async () => {
+    setPassword(PW);
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('UI_REVIEW', '1');
+    const res = await login(loginRequest({ username: 'abc', password: 'abc' }));
+    expect(res.status).toBe(200);
+    expect(await verifyToken(res.cookies.get(COOKIE)?.value)).toBe(true);
+  });
+
+  it('默认环境及生产环境拒绝测试账号', async () => {
+    setPassword(PW);
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('UI_REVIEW', '');
+    expect((await login(loginRequest({ username: 'abc', password: 'abc' }))).status).toBe(401);
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('UI_REVIEW', '1');
+    expect((await login(loginRequest({ username: 'abc', password: 'abc' }))).status).toBe(401);
   });
 });
 

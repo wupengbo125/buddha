@@ -26,8 +26,8 @@ export function createState(date: string): CounterState {
 }
 
 /** 用服务端计数器初始化显示状态（服务端唯一权威）。 */
-export function stateFromCounter(c: { total: number; today: number; today_date: string }): CounterState {
-  return { total: c.total, today: c.today, today_date: c.today_date };
+export function stateFromCounter(c: { total: number; today: number; today_date: string }, date: string): CounterState {
+  return { total: c.total, today: c.today_date === date ? c.today : 0, today_date: date };
 }
 
 /**
@@ -59,9 +59,10 @@ export function applyServerTotals(
   res: { total: number; today: number; today_date: string },
 ): CounterState {
   const sameDay = res.today_date === state.today_date;
+  const olderDay = res.today_date < state.today_date;
   return {
     total: Math.max(state.total, res.total),
-    today: sameDay ? Math.max(state.today, res.today) : res.today,
-    today_date: res.today_date,
+    today: sameDay ? Math.max(state.today, res.today) : olderDay ? state.today : res.today,
+    today_date: olderDay ? state.today_date : res.today_date,
   };
 }
