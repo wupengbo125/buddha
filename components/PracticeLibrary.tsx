@@ -234,11 +234,10 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
 
   const renderCard = (item: PracticeContent) => (
     <li className={styles.contentRow} key={item.id}>
-      <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2></div>
+      <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>
+        <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
+      </div>
 
-          <div className={`${styles.actions} ${styles.cardActions}`}>
-            <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
-          </div>
           {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
     </li>
   );
