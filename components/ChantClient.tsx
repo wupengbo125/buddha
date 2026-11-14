@@ -59,7 +59,7 @@ export function ChantClient() {
       <header className="chant-header">
         <span className="chant-brand flex items-center gap-2">
           <img src="/wooden-fish.png" width={40} height={40} alt="" />
-          {siteName}
+          {practiceSession?.active && !practiceSession.active.completed ? practiceSession.active.items[practiceSession.active.index]?.name : siteName}
         </span>
         <button type="button" className="icon-button" onClick={toggleSound}
           aria-label={soundEnabled ? '关闭全部音效' : '开启全局音效'}
