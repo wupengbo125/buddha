@@ -147,11 +147,8 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
 
   return (
     <section className="chant-center" aria-label="当前发愿">
-      <div className="practice-chant-heading">
-        <p className="practice-chant-k">{run.collection_name} · 第 {Math.min(run.index + 1, run.items.length)} 关 / 共 {run.items.length} 关</p>
-        <h1 className="practice-chant-name">{run.completed ? '本次念诵完成' : practice?.name}</h1>
-        {!run.completed && !caption && <p className="practice-recitation">{practice?.recitation}</p>}
-      </div>
+      {run.completed && <div className="practice-chant-heading"><h1 className="practice-chant-name">本次念诵完成</h1></div>}
+      {!run.completed && !caption && <p className="practice-recitation">{practice?.recitation}</p>}
       <div className="fish-stage">
         <div className="chant-caption" aria-live="off">{caption && <Caption key={caption.token} data={caption} />}</div>
         <WoodenFish onTap={tap} disabled={run.completed || stageDone} />
@@ -164,8 +161,7 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
       </div>
       {!run.completed && <div className="practice-progress">
         <progress value={displayed} max={practice?.target} aria-label="当前发愿进度" />
-        <span className="practice-progress-n">本关 {displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声</span>
-        <span className="practice-progress-s">今日 {session.stats.today.toLocaleString()} · 累计 {session.stats.total.toLocaleString()} 声</span>
+        <span className="practice-progress-n">{displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声 · 今日 {session.stats.today.toLocaleString()}</span>
       </div>}
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}
       {pending > 0 && <p className="text-sm text-muted" role="status">正在同步 {pending} 声</p>}
