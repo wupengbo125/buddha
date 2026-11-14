@@ -34,9 +34,12 @@ export async function sessionState(db: D1Database, owner: string, date: string):
       UNION ALL
       SELECT count AS total, CASE WHEN date = ? THEN count ELSE 0 END AS today FROM practice_daily_counts WHERE owner_id = ?
     )`).bind(date, owner, date, owner),
+    db.prepare(`SELECT p.practice_id AS id, p.count AS today FROM practice_personal_counts p WHERE p.owner_id = ? AND p.date = ?
+      UNION ALL SELECT c.id AS id, c.today AS today FROM counters c WHERE c.device_id = ? AND c.today_date = ?`).bind(owner, date, owner, date),
   ]);
   const row = results[0].results?.[0] as (RunRow & { revision: number }) | undefined;
   const stats = results[2].results?.[0] as { today: number; total: number };
+  const perPracticeToday = new Map((results[3].results as { id: string; today: number }[] | undefined ?? []).map((item) => [item.id, item.today]));
   let active: Run | null = null;
   if (row?.id) {
     const snapshot = JSON.parse(row.snapshot) as Collection;
@@ -44,7 +47,7 @@ export async function sessionState(db: D1Database, owner: string, date: string):
     active = {
       id: row.id, collection_id: row.collection_id, collection_name: snapshot.name,
       index: row.item_index, completed: Boolean(row.completed), count: counts[row.item_index],
-      items: snapshot.items, counts, total: counts.reduce((total, count) => total + count, 0),
+      items: snapshot.items.map((item) => ({ ...item, today_total: perPracticeToday.get(item.id) ?? 0 })), counts, total: counts.reduce((total, count) => total + count, 0),
     };
   }
   return { active, stats, revision: row?.revision ?? 0, date };

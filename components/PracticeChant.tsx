@@ -158,7 +158,7 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
       </div>
       {!run.completed && <div className="practice-progress">
         <progress value={displayed} max={practice?.target} aria-label="当前发愿进度" />
-        <span className="practice-progress-n">{displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声</span>
+        <span className="practice-progress-n">{displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声 · 今日 {((practice as { today_total?: number } | undefined)?.today_total ?? 0).toLocaleString()}</span>
       </div>}
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}
 

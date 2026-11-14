@@ -24,6 +24,7 @@ export interface Practice {
   liked: boolean;
   favorited: boolean;
   personal_total?: number;
+  today_total?: number;
   reviews?: PracticeReview[];
 }
 
