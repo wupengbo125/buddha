@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Copy, ExternalLink, EllipsisVertical, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
-import type { Collection as PracticeCollection, Practice } from '@/lib/practice-types';
+import type { Collection as PracticeCollection, Practice, PracticeSessionState } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
 export type PracticeKind = 'practices' | 'collections';
@@ -72,6 +72,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const [needsLogin, setNeedsLogin] = useState(false);
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
+  const [active, setActive] = useState<PracticeSessionState['active']>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -94,9 +95,11 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     Promise.all([
       practiceRequest<Practice[]>('/api/practices', 'GET', undefined, controller.signal),
       practiceRequest<PracticeCollection[]>('/api/practice-collections', 'GET', undefined, controller.signal),
-    ]).then(([ownedPractices, ownedCollections]) => {
+      practiceRequest<PracticeSessionState>('/api/practice-session', 'GET', undefined, controller.signal),
+    ]).then(([ownedPractices, ownedCollections, session]) => {
       setPractices(ownedPractices);
       setCollections(ownedCollections);
+      setActive(session.active);
       const editId = new URLSearchParams(window.location.search).get('edit');
       const selected = (kind === 'practices' ? ownedPractices : ownedCollections).find((item) => item.id === editId);
       if (selected) setEditor(makeEditor(selected));
@@ -227,11 +230,15 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     }
   }
 
+  const isRunning = (item: PracticeContent) => Boolean(active) && ('items' in item
+    ? active!.collection_id === item.id
+    : active!.items[active!.index]?.id === item.id);
+
   const renderCard = (item: PracticeContent) => (
-    <li className={styles.contentRow} key={item.id}>
+    <li className={`${styles.contentRow} ${isRunning(item) ? styles.runningRow : ''}`} key={item.id}>
       <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>
         <div className={styles.cardButtons}>
-          {!('items' in item) && <button type="button" className="icon-button" title={`开始念诵 ${item.name}`} aria-label={`开始念诵 ${item.name}`} disabled={busy} onClick={() => startPractice(item)}><Play size={18} /></button>}
+          <button type="button" className="icon-button" title={`开始 ${item.name}`} aria-label={`开始 ${item.name}`} disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><Play size={18} /></button>
           <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
         </div>
       </div>

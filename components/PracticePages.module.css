@@ -35,6 +35,7 @@
 .contentList { border-top: 1px solid var(--c-line); }
 .cardActions { margin-top: 2px; justify-content: flex-end; }
 .contentRow { padding: 10px 0; border-bottom: 1px solid var(--c-line); }
+.runningRow { border-left: 3px solid var(--c-accent, #2f6b52); padding-left: 8px; background: var(--c-accent-soft, rgba(47,107,82,0.06)); }
 .rowHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .contentTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 18px; line-height: 1.45; min-width: 0; overflow-wrap: anywhere; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.5; color: rgb(var(--c-muted)); flex-shrink: 0; padding-top: 7px; }
