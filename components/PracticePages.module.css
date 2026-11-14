@@ -38,6 +38,7 @@
 .runningRow { border-left: 3px solid rgb(var(--c-accent)); padding-left: 12px; background: linear-gradient(90deg, rgb(var(--c-accent-soft) / .38), transparent 74%); }
 .rowHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rowMain { min-width: 0; }
+button.rowMain { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .rowMeta { margin-top: 6px; font-size: 11.5px; color: rgb(var(--c-muted)); letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rowMetaRunning { color: rgb(var(--c-accent)); }
 .contentTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 21px; line-height: 1.25; letter-spacing: .02em; min-width: 0; overflow-wrap: anywhere; }

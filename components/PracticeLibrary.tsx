@@ -248,12 +248,14 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const renderCard = (item: PracticeContent) => (
     <li className={`${styles.contentRow} ${isRunning(item) ? styles.runningRow : ''}`} key={item.id}>
       <div className={styles.rowHeading}>
-        <div className={styles.rowMain}>
+        {'items' in item ? <button type="button" className={styles.rowMain} aria-expanded={expanded === item.id} disabled={busy} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}>
           <h2 className={styles.contentTitle}>{item.name}</h2>
-          <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{'items' in item ? collectionMeta(item) : `今日 ${(item.today_total ?? 0).toLocaleString()} · 累计 ${(item.personal_total ?? 0).toLocaleString()}`}</p>
-        </div>
+          <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{collectionMeta(item)}</p>
+        </button> : <div className={styles.rowMain}>
+          <h2 className={styles.contentTitle}>{item.name}</h2>
+          <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{`今日 ${(item.today_total ?? 0).toLocaleString()} · 累计 ${(item.personal_total ?? 0).toLocaleString()}`}</p>
+        </div>}
         <div className={styles.cardButtons}>
-          {'items' in item && <button type="button" className="icon-button" title={`${item.name} 的关卡`} aria-label={`${item.name} 的关卡`} aria-expanded={expanded === item.id} disabled={busy} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}>{expanded === item.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</button>}
           <button type="button" className="icon-button" title={`开始 ${item.name}`} aria-label={`开始 ${item.name}`} disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><Play size={18} /></button>
           <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
         </div>
