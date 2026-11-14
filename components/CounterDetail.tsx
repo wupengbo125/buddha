@@ -115,19 +115,6 @@ export function CounterDetail({ id }: { id: string }) {
     }
   };
 
-  const updateSound = async (enabled: boolean) => {
-    setBusy(true);
-    setError('');
-    try {
-      const { counter: updated } = await api.updateCounter(id, { sound_enabled: enabled ? 1 : 0 });
-      setCounter(updated);
-    } catch (error) {
-      setError(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const uploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setBusy(true);
@@ -202,12 +189,6 @@ export function CounterDetail({ id }: { id: string }) {
             {saved && <p className="mt-3 text-center text-sm text-accent" role="status">已保存</p>}
           </form>
 
-          <section className="section">
-            <label className="flex items-center justify-between text-sm">
-              发愿音效
-              <input type="checkbox" checked={counter.sound_enabled === 1} disabled={busy} onChange={(event) => void updateSound(event.target.checked)} />
-            </label>
-          </section>
           <section className="section">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm">发愿图片 <span className="ml-1 text-muted">{images.length}</span></h2>

@@ -169,7 +169,7 @@ export function useChant() {
     // playWoodFish / vibrateShort 内部 try/catch 静默，绝不阻塞计数。
     const globalOn = settingsRef.current.soundEnabled;
     const reduced = prefersReducedMotion();
-    if (shouldPlaySound(globalOn && counter.sound_enabled === 1)) playWoodFish();
+    if (shouldPlaySound(globalOn)) playWoodFish();
     if (shouldVibrate(globalOn, reduced)) vibrateShort(reduced);
 
     // 每次点击立即一次 POST（delta=1）；顺带触发一次失败队列重试。

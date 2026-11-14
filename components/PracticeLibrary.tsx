@@ -113,6 +113,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const items = kind === 'practices' ? practices : collections;
   const entityName = kind === 'practices' ? '发愿' : '发愿集';
   const endpoint = kind === 'practices' ? '/api/practices' : '/api/practice-collections';
+  const editingItem = editor?.id ? items.find((entry) => entry.id === editor.id) : undefined;
   const references = kind === 'practices' && confirmation?.action === 'delete'
     ? collections.filter((collection) => collection.items.some((practice) => practice.id === confirmation.item.id)) : [];
 
@@ -204,7 +205,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
       await navigator.clipboard.writeText(`${window.location.origin}/discover/${kind}/${encodeURIComponent(item.id)}`);
       setNotice('分享链接已复制');
     } catch {
-      setError('无法复制链接，请打开公开详情后复制地址。');
+      setError('无法复制链接，请稍后重试。');
     }
   }
 
@@ -249,6 +250,14 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
               <ol className={styles.editList}>{editor.practiceIds.map((id, index) => <li className={styles.editRow} key={`${id}-${index}`}><span className={styles.number}>{index + 1}</span><span className={styles.grow}>{practices.find((practice) => practice.id === id)?.name ?? '发愿不可用'}</span><div className={styles.orderButtons}><button type="button" className="icon-button" title={`上移第 ${index + 1} 项`} aria-label={`上移第 ${index + 1} 项`} disabled={index === 0} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, -1) })}><ArrowUp size={17} /></button><button type="button" className="icon-button" title={`下移第 ${index + 1} 项`} aria-label={`下移第 ${index + 1} 项`} disabled={index === editor.practiceIds.length - 1} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, 1) })}><ArrowDown size={17} /></button><button type="button" className="icon-button" title={`移除第 ${index + 1} 项`} aria-label={`移除第 ${index + 1} 项`} onClick={() => setEditor({ ...editor, practiceIds: editor.practiceIds.filter((_, position) => position !== index) })}><X size={17} /></button></div></li>)}</ol>
               <p className={styles.meta}>{editor.practiceIds.length} 项 · {editor.practiceIds.reduce((total, id) => total + (practices.find((practice) => practice.id === id)?.target ?? 0), 0).toLocaleString()} 次</p>
             </>}
+            {editingItem && <div>
+              <div className={styles.sectionHeading}><h3>公开状态 · {visibilityLabels[editingItem.visibility]}</h3></div>
+              <div className={styles.actions}>
+                {editingItem.visibility !== 'public' && <button type="button" className="secondary-button" disabled={busy} onClick={() => mutate(editingItem, 'publish')}><Send size={16} />{editingItem.visibility === 'pending' || editingItem.visibility === 'rejected' ? '重新送审' : '提交公开'}</button>}
+                {(editingItem.visibility === 'public' || editingItem.visibility === 'pending' || editingItem.visibility === 'rejected') && <button type="button" className="secondary-button" disabled={busy} onClick={() => mutate(editingItem, 'unpublish')}><Lock size={15} />取消公开</button>}
+              </div>
+            </div>}
+            {editor.id && kind === 'practices' && <Link className={styles.textLink} href={`/counter/${encodeURIComponent(editor.id)}`}>发愿图片与更多设置<ExternalLink size={16} /></Link>}
             <div className={styles.actions}><button type="submit" className="primary-button" disabled={!editor.name.trim() || (kind === 'collections' && editor.practiceIds.length === 0)}><Save size={18} />{busy ? '正在保存...' : '保存'}</button><button type="button" className="secondary-button" onClick={() => setEditor(null)}>取消</button></div>
           </fieldset>
         </form>
@@ -272,13 +281,11 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
             <button type="button" className="icon-button" title={expanded === item.id ? '收起详情' : '查看详情'} aria-label={`${expanded === item.id ? '收起' : '查看'}${item.name}详情`} aria-expanded={expanded === item.id} onClick={() => setExpanded(expanded === item.id ? null : item.id)}>{expanded === item.id ? <ChevronUp size={19} /> : <ChevronDown size={19} />}</button>
             <button type="button" className={`icon-button ${styles.danger}`} title={`删除${item.name}`} aria-label={`删除${item.name}`} disabled={busy} onClick={() => { setConfirmation({ item, action: 'delete' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Trash2 size={18} /></button>
           </div>
-          <div className={styles.actions}>
-             {item.visibility !== 'public' && <button type="button" className="secondary-button" disabled={busy} onClick={() => mutate(item, 'publish')}><Send size={16} />{item.visibility === 'pending' || item.visibility === 'rejected' ? '重新送审' : '提交公开'}</button>}
-            {(item.visibility === 'public' || item.visibility === 'pending' || item.visibility === 'rejected') && <button type="button" className="secondary-button" disabled={busy} onClick={() => mutate(item, 'unpublish')}><Lock size={15} />取消公开</button>}
-            {item.visibility === 'public' && <><button type="button" className="icon-button" title="复制分享链接" aria-label={`分享${item.name}`} onClick={() => share(item)}><Share2 size={18} /></button><Link className="icon-button" title="公开详情" aria-label={`${item.name}公开详情`} href={`/discover/${kind}/${encodeURIComponent(item.id)}`}><ExternalLink size={18} /></Link></>}
+          {(item.visibility === 'public' || 'items' in item) && <div className={styles.actions}>
+            {item.visibility === 'public' && <button type="button" className="icon-button" title="复制分享链接" aria-label={`分享${item.name}`} onClick={() => share(item)}><Share2 size={18} /></button>}
             {'items' in item && <button type="button" className="icon-button" title="重新开始" aria-label={`重新开始${item.name}`} disabled={busy} onClick={() => { setConfirmation({ item, action: 'restart' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><RotateCcw size={18} /></button>}
-          </div>
-          {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}<Link className={styles.textLink} href={`/counter/${encodeURIComponent(item.id)}`}>图片与音效<ExternalLink size={16} /></Link></div>)}
+          </div>}
+          {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
         </li>)}</ul>
       )}
     </main>
