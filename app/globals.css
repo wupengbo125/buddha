@@ -120,3 +120,9 @@
 @keyframes arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ripple { from { transform: scale(.8); opacity: .6; } to { transform: scale(1.2); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* 关卡完成：先停一下，自己点进下一关 */
+.stage-done { max-width: 420px; margin: 0 auto 14px; padding: 20px 20px 18px; border: 1px solid var(--c-line, rgba(31,33,26,.13)); border-radius: 14px; background: rgba(235,228,211,.5); text-align: center; }
+.stage-done-k { margin: 0; font-size: 11px; letter-spacing: .16em; color: var(--c-muted, #868A7B); }
+.stage-done-n { margin: 6px 0 2px; font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 22px; line-height: 1.35; }
+.stage-done-s { margin: 0 0 14px; font-size: 13px; color: var(--c-muted, #868A7B); }

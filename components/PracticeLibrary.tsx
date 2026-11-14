@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Copy, ExternalLink, Globe, Home, Lock, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Send, Share2, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Copy, ExternalLink, Home, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
 import type { Collection as PracticeCollection, Practice, PracticeSessionState } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
@@ -65,7 +65,7 @@ export async function practiceRequest<Result>(path: string, method = 'GET', body
   return data as Result;
 }
 
-export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind }) {
+export function PracticeLibrary({ kind = 'practices', doneOnly = false }: { kind?: PracticeKind; doneOnly?: boolean }) {
   const router = useRouter();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [collections, setCollections] = useState<PracticeCollection[]>([]);
@@ -76,7 +76,6 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [selectedPractice, setSelectedPractice] = useState('');
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{ item: PracticeContent; action: 'delete' | 'restart' } | null>(null);
@@ -111,8 +110,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     return () => controller.abort();
   }, [revision, kind]);
 
-  const items = kind === 'practices' ? practices : collections;
-  const entityName = kind === 'practices' ? '发愿' : '发愿集';
+const allItems = kind === 'practices' ? practices : collections;
+  const items = doneOnly ? (practices.filter((item) => (item.personal_total ?? 0) >= item.target) as PracticeContent[]) : allItems;
+const entityName = doneOnly ? '已完成的发愿' : kind === 'practices' ? '发愿' : '发愿集';
   const endpoint = kind === 'practices' ? '/api/practices' : '/api/practice-collections';
   const editingItem = editor?.id ? items.find((entry) => entry.id === editor.id) : undefined;
   const references = kind === 'practices' && confirmation?.action === 'delete'
@@ -213,13 +213,13 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   return (
     <main className={`page ${styles.root}`}>
       <header className="page-header">
-        <div><p className="eyebrow">我的内容</p><h1 className="page-title">我的{entityName}</h1></div>
-        <button type="button" className="icon-button bg-accent-soft text-accent" title={`新增${entityName}`} aria-label={`新增${entityName}`} disabled={loading || busy} onClick={() => { setEditor(makeEditor()); setError(''); setConfirmation(null); }}><Plus size={22} /></button>
+        <div><p className="eyebrow">{doneOnly ? '归档' : '我的内容'}</p><h1 className="page-title">{doneOnly ? entityName : `我的${entityName}`}</h1></div>
+        {!doneOnly && <button type="button" className="icon-button bg-accent-soft text-accent" title={`新增${entityName}`} aria-label={`新增${entityName}`} disabled={loading || busy} onClick={() => { setEditor(makeEditor()); setError(''); setConfirmation(null); }}><Plus size={22} /></button>}
       </header>
       <nav aria-label="我的内容" className={styles.tabs}>
-        <Link href="/practices" aria-current={kind === 'practices' ? 'page' : undefined}>发愿</Link>
+        <Link href="/practices" aria-current={kind === 'practices' && !doneOnly ? 'page' : undefined}>发愿</Link>
+        <Link href="/practices/completed" aria-current={doneOnly ? 'page' : undefined}>已完成</Link>
         <Link href="/practice-collections" aria-current={kind === 'collections' ? 'page' : undefined}>发愿集</Link>
-        <Link href="/discover">广场</Link>
       </nav>
       {kind === 'collections' && <section className={styles.sessionBar} aria-label="当前发愿">
         <div className={styles.grow}><span className={styles.meta}>当前发愿集</span><p>{active ? `${active.collection_name}${active.completed ? ' · 已完成' : ''}` : '未开始发愿集'}</p>{active && <><p className={styles.meta}>{active.total.toLocaleString()} / {active.items.reduce((total, practice) => total + practice.target, 0).toLocaleString()} 次</p><progress className={styles.progress} aria-label="当前发愿集进度" value={active.total} max={active.items.reduce((total, practice) => total + practice.target, 0)} /></>}</div>
@@ -246,38 +246,33 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
                 </li>)}</ol>
               </div>
             </> : <>
-              <div className={styles.addRow}><label htmlFor="add-practice" className={`${styles.label} ${styles.grow}`}>发愿<select id="add-practice" className="field" value={selectedPractice} onChange={(event) => setSelectedPractice(event.target.value)}><option value="">选择发愿</option>{practices.map((practice) => <option value={practice.id} key={practice.id}>{practice.name}</option>)}</select></label><button type="button" className="icon-button" disabled={!selectedPractice} title="加入发愿集" aria-label="加入发愿集" onClick={() => setEditor({ ...editor, practiceIds: [...editor.practiceIds, selectedPractice] })}><Plus size={20} /></button></div>
-              {practices.length === 0 && <Link href="/practices" className={styles.textLink}><Plus size={16} />创建发愿</Link>}
-              <ol className={styles.editList}>{editor.practiceIds.map((id, index) => <li className={styles.editRow} key={`${id}-${index}`}><span className={styles.number}>{index + 1}</span><span className={styles.grow}>{practices.find((practice) => practice.id === id)?.name ?? '发愿不可用'}</span><div className={styles.orderButtons}><button type="button" className="icon-button" title={`上移第 ${index + 1} 项`} aria-label={`上移第 ${index + 1} 项`} disabled={index === 0} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, -1) })}><ArrowUp size={17} /></button><button type="button" className="icon-button" title={`下移第 ${index + 1} 项`} aria-label={`下移第 ${index + 1} 项`} disabled={index === editor.practiceIds.length - 1} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, 1) })}><ArrowDown size={17} /></button><button type="button" className="icon-button" title={`移除第 ${index + 1} 项`} aria-label={`移除第 ${index + 1} 项`} onClick={() => setEditor({ ...editor, practiceIds: editor.practiceIds.filter((_, position) => position !== index) })}><X size={17} /></button></div></li>)}</ol>
-              <p className={styles.meta}>{editor.practiceIds.length} 项 · {editor.practiceIds.reduce((total, id) => total + (practices.find((practice) => practice.id === id)?.target ?? 0), 0).toLocaleString()} 次</p>
+              <div className={styles.levelHead}><h3>关卡</h3><span className={styles.meta}>{editor.practiceIds.length} 关</span></div>
+              <ol className={styles.levelList}>{editor.practiceIds.map((id, index) => { const practice = practices.find((entry) => entry.id === id); return <li className={styles.levelRow} key={`${id}-${index}`}><span className={styles.levelNo}>{index + 1}</span><span className={styles.grow}><b>{practice?.name ?? '发愿已删除'}</b><span className={styles.meta}>{practice ? `${practice.target.toLocaleString()} 次` : '需要移除'}</span></span><div className={styles.orderButtons}><button type="button" className="icon-button" title={`上移第 ${index + 1} 关`} aria-label={`上移第 ${index + 1} 关`} disabled={index === 0} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, -1) })}><ArrowUp size={16} /></button><button type="button" className="icon-button" title={`下移第 ${index + 1} 关`} aria-label={`下移第 ${index + 1} 关`} disabled={index === editor.practiceIds.length - 1} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, 1) })}><ArrowDown size={16} /></button><button type="button" className="icon-button" title={`移除第 ${index + 1} 关`} aria-label={`移除第 ${index + 1} 关`} onClick={() => setEditor({ ...editor, practiceIds: editor.practiceIds.filter((entry) => entry !== id) })}><X size={16} /></button></div></li>; })}</ol>
+              {editor.practiceIds.length === 0 && <p className={styles.meta}>还没有关卡，点下面的发愿就能成为第 1 关。</p>}
+              <div className={styles.levelChips}>{practices.filter((practice) => !editor.practiceIds.includes(practice.id)).map((practice) => <button type="button" className={styles.chip} key={practice.id} disabled={busy} onClick={() => setEditor({ ...editor, practiceIds: [...editor.practiceIds, practice.id] })}><Plus size={14} />{practice.name}</button>)}</div>
+              {practices.length === 0 && <Link href="/practices" className={styles.textLink}><Plus size={16} />先去创建发愿</Link>}
             </>}
-            {editingItem && <div>
-              <div className={styles.sectionHeading}><h3>公开状态 · {visibilityLabels[editingItem.visibility]}</h3></div>
-              <div className={styles.actions}>
-                {editingItem.visibility !== 'public' && <button type="button" className="secondary-button" disabled={busy} onClick={() => mutate(editingItem, 'publish')}><Send size={16} />{editingItem.visibility === 'pending' || editingItem.visibility === 'rejected' ? '重新送审' : '提交公开'}</button>}
-                {(editingItem.visibility === 'public' || editingItem.visibility === 'pending' || editingItem.visibility === 'rejected') && <button type="button" className="secondary-button" disabled={busy} onClick={() => mutate(editingItem, 'unpublish')}><Lock size={15} />取消公开</button>}
-              </div>
-            </div>}
-            {editor.id && kind === 'practices' && <Link className={styles.textLink} href={`/counter/${encodeURIComponent(editor.id)}`}>发愿图片与更多设置<ExternalLink size={16} /></Link>}
+              {editingItem && <div className={styles.pubRow}><div className={styles.grow}><p className={styles.pubTitle}>公开到广场</p><p className={styles.meta}>{editingItem.visibility === 'rejected' ? '上次审核未通过，改完再打开这里重新送审' : editingItem.visibility === 'pending' ? '正在审核，关掉就是撤回' : editingItem.visibility === 'public' ? '同修能在广场看到这一页' : '打开后送审，通过就在广场出现'}</p></div>
+                <button type="button" className={styles.switch} data-status={editingItem.visibility} role="switch" aria-checked={editingItem.visibility === 'public' || editingItem.visibility === 'pending'} aria-label={`${editingItem.name} 是否公开到广场`} disabled={busy} onClick={() => mutate(editingItem, editingItem.visibility === 'public' || editingItem.visibility === 'pending' ? 'unpublish' : 'publish')}><i /></button></div>}
             <div className={styles.actions}><button type="submit" className="primary-button" disabled={!editor.name.trim() || (kind === 'collections' && editor.practiceIds.length === 0)}><Save size={18} />{busy ? '正在保存...' : '保存'}</button><button type="button" className="secondary-button" onClick={() => setEditor(null)}>取消</button></div>
           </fieldset>
         </form>
       </section>}
 
-  {confirmation && <section className={styles.confirmation} aria-labelledby="confirmation-title"><h2 id="confirmation-title">{confirmation.action === 'delete' ? '删除' : '重新开始'}「{confirmation.item.name}」？</h2><p>{confirmation.action === 'delete' ? references.length > 0 ? '此发愿仍被发愿集引用。' : kind === 'practices' ? '发愿将被删除。' : '发愿集与个人进度将被删除，发愿保留。' : '本轮进度将清零，使用当前内容重新开始。'}</p>{references.map((collection) => <Link key={collection.id} className={styles.textLink} href={`/practice-collections?edit=${encodeURIComponent(collection.id)}`}>{collection.name}<Pencil size={14} /></Link>)}<div className={styles.actions}><button type="button" disabled={busy} className="secondary-button" onClick={() => setConfirmation(null)}>取消</button><button type="button" disabled={busy || references.length > 0} className="primary-button" onClick={() => confirmation.action === 'delete' ? mutate(confirmation.item, 'delete') : sessionAction('restart', confirmation.item.id)}>{confirmation.action === 'delete' ? <Trash2 size={17} /> : <RotateCcw size={17} />}{busy ? '正在处理...' : '确认'}</button></div></section>}
+  {confirmation && <div className={styles.confirmOverlay} onClick={() => !busy && setConfirmation(null)}><section className={styles.confirmation} onClick={(event) => event.stopPropagation()} aria-labelledby="confirmation-title"><h2 id="confirmation-title">{confirmation.action === 'delete' ? '删除' : '重新开始'}「{confirmation.item.name}」？</h2><p>{confirmation.action === 'delete' ? references.length > 0 ? '此发愿仍被发愿集引用。' : kind === 'practices' ? '发愿将被删除。' : '发愿集与个人进度将被删除，发愿保留。' : '本轮进度将清零，使用当前内容重新开始。'}</p>{references.map((collection) => <Link key={collection.id} className={styles.textLink} href={`/practice-collections?edit=${encodeURIComponent(collection.id)}`}>{collection.name}<Pencil size={14} /></Link>)}<div className={styles.actions}><button type="button" disabled={busy} className="secondary-button" onClick={() => setConfirmation(null)}>取消</button><button type="button" disabled={busy || references.length > 0} className="primary-button" onClick={() => confirmation.action === 'delete' ? mutate(confirmation.item, 'delete') : sessionAction('restart', confirmation.item.id)}>{confirmation.action === 'delete' ? <Trash2 size={17} /> : <RotateCcw size={17} />}{busy ? '正在处理...' : '确认'}</button></div></section></div>}
 
-      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && !error ? <div className="empty-state"><p>暂无{entityName}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增{entityName}</button></div> : (
+      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && !error ? <div className="empty-state"><p>{doneOnly ? '还没有念完的发愿。一页念到目标次数，就会出现在这里。' : `暂无${entityName}`}</p>{!doneOnly && <button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增{entityName}</button>}</div> : (
         <ul className={styles.contentList}>{items.map((item) => <li className={styles.contentRow} key={item.id}>
-          <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>{kind === 'practices' ? <div className={styles.pub}><span className={styles.pubLabel} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span><button type="button" className={styles.switch} data-status={item.visibility} role="switch" aria-checked={item.visibility === 'public' || item.visibility === 'pending'} aria-label={`${item.name} 是否公开到广场`} disabled={busy} title={item.visibility === 'public' ? '从广场撤下' : item.visibility === 'pending' ? '撤回送审' : item.visibility === 'rejected' ? '修改后重新送审' : '公开到广场'} onClick={() => mutate(item, item.visibility === 'public' || item.visibility === 'pending' ? 'unpublish' : 'publish')}><i /></button></div> : <span className={styles.badge} data-status={item.visibility}>{item.visibility === 'private' ? <Lock size={12} /> : item.visibility === 'public' ? <Globe size={12} /> : null}{visibilityLabels[item.visibility]}</span>}</div>
+          <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>{kind === 'practices' && !doneOnly && <span className={styles.pubLabel} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span>}{kind !== 'practices' && <span className={styles.badge} data-status={item.visibility}>{visibilityLabels[item.visibility]}</span>}</div>
           {item.description && <p className={styles.description}>{item.description}</p>}
-          <p className={styles.meta}>{'items' in item ? `${item.items.length} 项 · ${item.total_target.toLocaleString()} 次` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`}</p>
+          <p className={styles.meta}>{'items' in item ? `共 ${item.items.length} 关${item.progress ? ` · 现在在第 ${Math.min(item.progress.index + 1, item.items.length)} 关` : ' · 未开始'}` : `累计 ${(item.personal_total ?? 0).toLocaleString()} 次 · 目标 ${item.target.toLocaleString()} 次`}</p>
                     {item.source_name && <p className={styles.meta}>来源：{item.source_name}</p>}
           {item.visibility === 'rejected' && <p className="error-message">审核未通过</p>}
           {'items' in item && item.visibility !== 'public' && item.items.some((practice) => practice.visibility !== 'public') && <div className={styles.reviewLinks}><span className={styles.meta}>尚未公开的发愿</span>{Array.from(new Map(item.items.filter((practice) => practice.visibility !== 'public').map((practice) => [practice.id, practice])).values()).map((practice) => <Link key={practice.id} href={`/practices?edit=${encodeURIComponent(practice.id)}`} className={styles.textLink}>{practice.name}<ExternalLink size={13} /></Link>)}</div>}
           <div className={styles.actions}>
             {'items' in item
-              ? <button type="button" className="primary-button" disabled={busy || item.items.length === 0} onClick={() => sessionAction('start', item.id)}><Play size={16} />{active?.collection_id === item.id && active.completed ? '查看完成' : '开始 / 继续'}</button>
-              : <button type="button" className="primary-button" disabled={busy} onClick={() => startPractice(item)}><Play size={16} />{(item.personal_total ?? 0) > 0 ? '继续念诵' : '开始念诵'}</button>}
+              ? <button type="button" className="primary-button" disabled={busy || item.items.length === 0} onClick={() => sessionAction('start', item.id)}><Play size={16} />{active?.collection_id === item.id && active.completed ? '已完成' : '开始'}</button>
+              : <button type="button" className="primary-button" disabled={busy} onClick={() => startPractice(item)}><Play size={16} />{doneOnly ? '再念一遍' : '开始'}</button>}
             <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><MoreHorizontal size={18} /></button>
           </div>
           {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}

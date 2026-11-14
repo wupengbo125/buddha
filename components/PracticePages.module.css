@@ -116,3 +116,26 @@
 /* ── 编辑：整页浮层，列表不跳、不滚顶 ── */
 .editor { position: fixed; inset: 0; z-index: 62; overflow-y: auto; background: rgb(var(--c-bg)); padding: 0 20px 28px; }
 .editor .sectionHeading { position: sticky; top: 0; z-index: 1; background: rgb(var(--c-bg)); padding-top: 10px; }
+
+/* ── 已完成：只读归档列表 ── */
+.doneNote { font-size: 12px; color: rgb(var(--c-muted)); margin: 0 0 12px; }
+
+/* ── 编辑里的公开开关 ── */
+.pubRow { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid var(--c-line); margin-top: 6px; }
+.pubTitle { font-size: 14px; color: rgb(var(--c-ink)); margin: 0 0 2px; }
+
+/* ── 发愿集：关卡编辑器 ── */
+.levelHead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 6px 0 8px; }
+.levelHead h3 { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 17px; font-weight: 400; margin: 0; }
+.levelList { list-style: none; margin: 0 0 10px; padding: 0; border-top: 1px solid var(--c-line); }
+.levelRow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--c-line); }
+.levelNo { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: rgb(var(--c-ink-soft)); border: 1px solid var(--c-line); flex: none; }
+.levelRow b { display: block; font-weight: 500; font-size: 14px; line-height: 1.4; }
+.levelChips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 12px; border: 1px dashed var(--c-line); border-radius: 999px; background: none; font-size: 13px; color: rgb(var(--c-ink-soft)); }
+.chip:hover { border-style: solid; color: rgb(var(--c-ink)); }
+
+/* ── 确认：底部浮起的卡片，不是页面顶部一条 ── */
+.confirmOverlay { position: fixed; inset: 0; z-index: 70; background: rgb(25 22 15 / .42); display: flex; align-items: flex-end; justify-content: center; padding: 0 12px calc(env(safe-area-inset-bottom) + 18px); }
+.confirmation { width: min(520px, 100%); border-radius: 14px; background: rgb(var(--c-bg)); border: 1px solid var(--c-line); padding: 18px 18px 14px; box-shadow: 0 -16px 36px -18px rgb(30 25 15 / .45); }
+.confirmation h2 { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 18px; font-weight: 400; margin: 0 0 6px; }

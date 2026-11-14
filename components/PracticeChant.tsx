@@ -14,6 +14,7 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
   const [caption, setCaption] = useState<CaptionData | null>(null);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(0);
+  const [stageDone, setStageDone] = useState(false);
   const current = useRef(initial);
   const queue = useRef<{ eventId: string; runId: string; itemIndex: number; date: string }[]>([]);
   const sending = useRef(false);
@@ -30,7 +31,7 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
       counts[active.index] += 1;
       const finished = counts[active.index] >= active.items[active.index].target;
       const completed = finished && active.index === active.items.length - 1;
-      const index = finished && !completed ? active.index + 1 : active.index;
+      const index = active.index;
       projected = { ...projected,
         stats: { today: projected.stats.today + (event.date === projected.date ? 1 : 0), total: projected.stats.total + 1 },
         active: { ...active, counts, index, completed, count: counts[index], total: active.total + 1 } };
@@ -122,7 +123,8 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
     counts[active.index] += 1;
     const finished = counts[active.index] >= item.target;
     const completed = finished && active.index === active.items.length - 1;
-    const index = finished && !completed ? active.index + 1 : active.index;
+    const index = active.index;
+    if (finished && !completed) setStageDone(true);
     const projected = { ...current.current,
       stats: { today: current.current.stats.today + 1, total: current.current.stats.total + 1 },
       active: { ...active, counts, index, completed, count: counts[index], total: active.total + 1 } };
@@ -133,6 +135,16 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
     void flush();
   };
 
+  const advance = () => {
+    setStageDone(false);
+    const active = current.current.active;
+    if (!active) return;
+    const index = active.index + 1;
+    const projected = { ...current.current, active: { ...active, index, count: active.counts[index], completed: false } };
+    current.current = projected;
+    setSession(projected);
+  };
+
   return (
     <section className="chant-center" aria-label="当前发愿">
       <div className="practice-chant-heading">
@@ -140,9 +152,15 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
         <h1 className="text-xl font-medium text-ink">{run.completed ? '本次念诵完成' : practice?.name}</h1>
         {!run.completed && <p className="practice-recitation">{practice?.recitation}</p>}
       </div>
+      {stageDone && !run.completed && <div className="stage-done" role="status">
+        <p className="stage-done-k">第 {run.index + 1} 关完成</p>
+        <p className="stage-done-n">{practice?.name}</p>
+        <p className="stage-done-s">{practice?.target.toLocaleString()} 声，念满了。</p>
+        <button type="button" className="primary-button" onClick={advance}>进入第 {run.index + 2} 关</button>
+      </div>}
       <div className="fish-stage">
         <div className="chant-caption" aria-live="off">{caption && <Caption key={caption.token} data={caption} />}</div>
-        <WoodenFish onTap={tap} disabled={run.completed} />
+        <WoodenFish onTap={tap} disabled={run.completed || stageDone} />
       </div>
       {!run.completed && <div className="practice-progress">
         <progress value={displayed} max={practice?.target} aria-label="当前发愿进度" />
