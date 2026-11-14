@@ -39,6 +39,14 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : '操作失败';
 }
 
+function nextCaptionText(counter: Counter, today: number): string {
+  let prompts: string[] = [];
+  try { prompts = JSON.parse(counter.prompts || '[]') as string[]; } catch { prompts = []; }
+  const list = prompts.filter((text) => text.trim());
+  if (list.length) return list[Math.abs(today) % list.length];
+  return counter.caption || counter.name;
+}
+
 export function useChant() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [states, setStates] = useState<Record<string, CounterState>>({});
@@ -161,7 +169,7 @@ export function useChant() {
     // 字幕：保持现有行为（文案取计数器字幕，为空取佛号名；时长全局 + 每项目覆盖）。
     captionToken.current += 1;
     setCaption({
-      text: counter.caption || counter.name,
+      text: nextCaptionText(counter, statesRef.current[counter.id]?.today ?? 0),
       durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
       token: captionToken.current,
     });
