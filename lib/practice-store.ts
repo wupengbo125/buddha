@@ -58,6 +58,7 @@ export function practiceFromRow(row: PracticeRow): Practice {
   return {
     ...common(row), target: row.target, prompts: parsePrompts(row.prompts),
     ...(row.item_id ? { item_id: row.item_id } : {}), personal_total: row.personal_total ?? 0,
+    today_total: row.today_total ?? 0,
   };
 }
 

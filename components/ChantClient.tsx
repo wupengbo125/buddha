@@ -142,6 +142,7 @@ export function ChantClient() {
               <span className="count-row-num count-row-total">{(state?.total ?? 0).toLocaleString()}</span>
               <span className="count-row-label">声</span>
             </div>
+            {selected.target ? <div className="count-progress" aria-label={`累计 ${state?.total ?? 0} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((state?.total ?? 0) / selected.target) * 100)}%` }} /></div><p className="count-progress-meta">{(state?.total ?? 0).toLocaleString()} / {selected.target.toLocaleString()}</p></div> : null}
           </div>
         </>
       )}
