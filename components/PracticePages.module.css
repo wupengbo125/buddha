@@ -102,7 +102,8 @@
 .switch:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
 
 /* ── 每条一个主按钮 + 一个「⋯」。其余动作进面板。 ── */
-.more { margin-left: auto; width: 38px; height: 38px; min-height: 38px; display: grid; place-items: center; border: 1px solid var(--c-line); border-radius: 6px; color: rgb(var(--c-ink-soft)); background: none; }
+.cardButtons { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.more { width: 38px; height: 38px; min-height: 38px; display: grid; place-items: center; border: 1px solid var(--c-line); border-radius: 6px; color: rgb(var(--c-ink-soft)); background: none; }
 .more:hover { background: rgb(var(--c-surface)); }
 
 /* ── 操作面板：贴底，四行，删除是红的 ── */

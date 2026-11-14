@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Copy, ExternalLink, Home, EllipsisVertical, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
-import type { Collection as PracticeCollection, Practice, PracticeSessionState } from '@/lib/practice-types';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Copy, ExternalLink, EllipsisVertical, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
+import type { Collection as PracticeCollection, Practice } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
 export type PracticeKind = 'practices' | 'collections';
@@ -67,7 +67,6 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const router = useRouter();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [collections, setCollections] = useState<PracticeCollection[]>([]);
-  const [active, setActive] = useState<PracticeSessionState['active']>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
@@ -95,11 +94,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     Promise.all([
       practiceRequest<Practice[]>('/api/practices', 'GET', undefined, controller.signal),
       practiceRequest<PracticeCollection[]>('/api/practice-collections', 'GET', undefined, controller.signal),
-      practiceRequest<PracticeSessionState>('/api/practice-session', 'GET', undefined, controller.signal),
-    ]).then(([ownedPractices, ownedCollections, session]) => {
+    ]).then(([ownedPractices, ownedCollections]) => {
       setPractices(ownedPractices);
       setCollections(ownedCollections);
-      setActive(session.active);
       const editId = new URLSearchParams(window.location.search).get('edit');
       const selected = (kind === 'practices' ? ownedPractices : ownedCollections).find((item) => item.id === editId);
       if (selected) setEditor(makeEditor(selected));
@@ -233,8 +230,10 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const renderCard = (item: PracticeContent) => (
     <li className={styles.contentRow} key={item.id}>
       <div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2>
-        {!('items' in item) && <button type="button" className="icon-button" title={`开始念诵 ${item.name}`} aria-label={`开始念诵 ${item.name}`} disabled={busy} onClick={() => startPractice(item)}><Play size={18} /></button>}
-        <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
+        <div className={styles.cardButtons}>
+          {!('items' in item) && <button type="button" className="icon-button" title={`开始念诵 ${item.name}`} aria-label={`开始念诵 ${item.name}`} disabled={busy} onClick={() => startPractice(item)}><Play size={18} /></button>}
+          <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
+        </div>
       </div>
 
           {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}>{item.prompts.length > 0 && <><h3 className={styles.meta}>弹幕</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
@@ -251,11 +250,6 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <Link href="/practices" aria-current={kind === 'practices' ? 'page' : undefined}>发愿</Link>
         <Link href="/practice-collections" aria-current={kind === 'collections' ? 'page' : undefined}>发愿集</Link>
       </nav>
-      {kind === 'collections' && <section className={styles.sessionBar} aria-label="当前发愿">
-        <div className={styles.grow}><span className={styles.meta}>当前发愿集</span><p>{active ? `${active.collection_name}${active.completed ? ' · 已完成' : ''}` : '未开始发愿集'}</p>{active && <><p className={styles.meta}>{active.total.toLocaleString()} / {active.items.reduce((total, practice) => total + practice.target, 0).toLocaleString()} 次</p><progress className={styles.progress} aria-label="当前发愿集进度" value={active.total} max={active.items.reduce((total, practice) => total + practice.target, 0)} /></>}</div>
-        {active && <button type="button" className="icon-button" disabled={busy} title="暂停念诵" aria-label="暂停念诵" onClick={() => sessionAction('pause')}><Pause size={19} /></button>}
-        <button type="button" className="secondary-button" disabled={busy || loading} onClick={() => sessionAction('pause')}><Home size={17} />返回念佛</button>
-      </section>}
 
       {error && <div role="alert" className="error-message">{error}{needsLogin && <> <Link href="/login" className={styles.textLink}>登录</Link></>}<button type="button" className="icon-button" title="重新载入" aria-label="重新载入" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={17} /></button></div>}
       <p className={styles.notice} role="status" aria-live="polite">{notice}</p>
@@ -308,7 +302,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <div className={styles.sheetGrab} />
         <p className={styles.sheetK}>可以做什么</p>
         <h2 className={styles.sheetTitle}>{menu.name}</h2>
-        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy || menu.items.length === 0} onClick={() => { setMenu(null); sessionAction('start', menu.id); }}><Play size={18} />{active?.collection_id === menu.id && active.completed ? '已完成' : '开始'}</button>}
+        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy || menu.items.length === 0} onClick={() => { setMenu(null); sessionAction('start', menu.id); }}><Play size={18} />开始</button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
         {!('items' in menu) && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setCollecting(menu); setMenu(null); }}><Bookmark size={18} />加入发愿集<span className={styles.sheetHint}>放进某一集</span></button>}
