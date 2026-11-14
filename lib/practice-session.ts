@@ -39,7 +39,10 @@ export async function sessionState(db: D1Database, owner: string, date: string, 
   const perPracticeTotal = new Map(counterRows.map((item) => [item.id, item.total]));
   let active: Run | null = null;
   if (row?.id) {
-    const snapshot = JSON.parse(row.snapshot) as Collection;
+    let snapshot: Collection;
+    try { snapshot = JSON.parse(row.snapshot) as Collection; }
+    catch { snapshot = { id: row.id, owner_id: owner, name: '', description: '', visibility: 'private', items: [], total_target: 0, likes: 0, liked: false, favorited: false } as Collection; }
+    if (!Array.isArray(snapshot.items)) snapshot = { ...snapshot, items: [] };
     const counts = snapshot.items.map((item) => Math.min(perPracticeTotal.get(item.id) ?? 0, item.target));
     const nextIndex = counts.findIndex((count, index) => count < snapshot.items[index].target);
     const index = nextIndex < 0 ? counts.length - 1 : nextIndex;

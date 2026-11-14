@@ -46,9 +46,16 @@ function common(row: ContentRow) {
   };
 }
 
+function parsePrompts(value: unknown): string[] {
+  if (Array.isArray(value)) return (value as string[]).filter((item) => typeof item === 'string');
+  if (typeof value !== 'string' || value.trim() === '') return [];
+  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? (parsed as string[]).filter((item) => typeof item === 'string') : []; }
+  catch { return []; }
+}
+
 export function practiceFromRow(row: PracticeRow): Practice {
   return {
-    ...common(row), target: row.target, prompts: JSON.parse(row.prompts),
+    ...common(row), target: row.target, prompts: parsePrompts(row.prompts),
     ...(row.item_id ? { item_id: row.item_id } : {}), personal_total: row.personal_total ?? 0,
   };
 }
