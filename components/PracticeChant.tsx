@@ -148,29 +148,25 @@ export function PracticeChant({ initial, onPaused }: { initial: PracticeSessionS
   return (
     <section className="chant-center" aria-label="当前发愿">
       <div className="practice-chant-heading">
-        <p className="text-sm text-muted">{run.collection_name} · {Math.min(run.index + 1, run.items.length)} / {run.items.length}</p>
-        <h1 className="text-xl font-medium text-ink">{run.completed ? '本次念诵完成' : practice?.name}</h1>
-        {!run.completed && <p className="practice-recitation">{practice?.recitation}</p>}
+        <p className="practice-chant-k">{run.collection_name} · 第 {Math.min(run.index + 1, run.items.length)} 关 / 共 {run.items.length} 关</p>
+        <h1 className="practice-chant-name">{run.completed ? '本次念诵完成' : practice?.name}</h1>
+        {!run.completed && !caption && <p className="practice-recitation">{practice?.recitation}</p>}
       </div>
-      {stageDone && !run.completed && <div className="stage-done" role="status">
-        <p className="stage-done-k">第 {run.index + 1} 关完成</p>
-        <p className="stage-done-n">{practice?.name}</p>
-        <p className="stage-done-s">{practice?.target.toLocaleString()} 声，念满了。</p>
-        <button type="button" className="primary-button" onClick={advance}>进入第 {run.index + 2} 关</button>
-      </div>}
       <div className="fish-stage">
         <div className="chant-caption" aria-live="off">{caption && <Caption key={caption.token} data={caption} />}</div>
         <WoodenFish onTap={tap} disabled={run.completed || stageDone} />
+        {stageDone && !run.completed && <div className="stage-done" role="status">
+          <p className="stage-done-k">第 {run.index + 1} 关完成</p>
+          <p className="stage-done-n">{practice?.name}</p>
+          <p className="stage-done-s">念满 {practice?.target.toLocaleString()} 声</p>
+          <button type="button" className="primary-button" onClick={advance}>进入第 {run.index + 2} 关</button>
+        </div>}
       </div>
       {!run.completed && <div className="practice-progress">
         <progress value={displayed} max={practice?.target} aria-label="当前发愿进度" />
-        <span>{displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声</span>
+        <span className="practice-progress-n">本关 {displayed.toLocaleString()} / {practice?.target.toLocaleString()} 声</span>
+        <span className="practice-progress-s">今日 {session.stats.today.toLocaleString()} · 累计 {session.stats.total.toLocaleString()} 声</span>
       </div>}
-      <div className="count-row" aria-label="个人发愿计数">
-        <span className="count-row-label">今日</span><span className="count-row-num count-row-today">{session.stats.today.toLocaleString()}</span>
-        <span className="count-row-sep">/</span><span className="count-row-label">累计</span>
-        <span className="count-row-num count-row-total">{session.stats.total.toLocaleString()}</span><span className="count-row-label">声</span>
-      </div>
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}
       {pending > 0 && <p className="text-sm text-muted" role="status">正在同步 {pending} 声</p>}
       {error && <p className="error-message" role="alert">{error}</p>}
