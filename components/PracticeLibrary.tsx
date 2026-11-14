@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Copy, ExternalLink, Globe, Home, Lock, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Send, Share2, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Copy, ExternalLink, Globe, Home, Lock, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Send, Share2, Trash2, X } from 'lucide-react';
 import type { Collection as PracticeCollection, Practice, PracticeSessionState } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
@@ -80,6 +80,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{ item: PracticeContent; action: 'delete' | 'restart' } | null>(null);
+  const [menu, setMenu] = useState<PracticeContent | null>(null);
 
   function showError(failure: unknown) {
     setError(failure instanceof Error ? failure.message : '操作失败');
