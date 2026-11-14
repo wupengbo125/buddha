@@ -7,19 +7,18 @@ export function projectPracticeTap(state: PracticeSessionState, event: { runId: 
   const newDay = date !== state.date;
   const sameDay = event.date === date;
   const practice = active.items[active.index];
-  const counts = [...active.counts];
-  counts[active.index] += 1;
-  const finished = counts[active.index] >= practice.target;
-  const completed = finished && active.index === active.items.length - 1;
-  const index = finished && !completed ? active.index + 1 : active.index;
   const items = active.items.map((item) => ({
     ...item,
     today_total: (newDay ? 0 : item.today_total ?? 0) + (item.id === practice.id && sameDay ? 1 : 0),
     personal_total: (item.personal_total ?? 0) + (item.id === practice.id ? 1 : 0),
   }));
+  const counts = items.map((item) => Math.min(item.personal_total ?? 0, item.target));
+  const nextIndex = counts.findIndex((count, itemIndex) => count < items[itemIndex].target);
+  const completed = nextIndex < 0;
+  const index = completed ? items.length - 1 : nextIndex;
   return {
     ...state, date,
     stats: { today: (newDay ? 0 : state.stats.today) + (sameDay ? 1 : 0), total: state.stats.total + 1 },
-    active: { ...active, items, counts, index, completed, count: counts[index], total: active.total + 1 },
+    active: { ...active, items, counts, index, completed, count: counts[index], total: counts.reduce((total, count) => total + count, 0) },
   };
 }

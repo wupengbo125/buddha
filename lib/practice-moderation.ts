@@ -27,7 +27,7 @@ function cleanPractice(content: Practice): Practice {
 }
 
 export function contentSnapshot(content: Content): Content {
-  if ('recitation' in content) return cleanPractice(content);
+  if (!('items' in content)) return cleanPractice(content);
   const { reviews, progress, ...snapshot } = content;
   return { ...snapshot, visibility: 'public', likes: 0, liked: false, favorited: false, items: content.items.map(cleanPractice) };
 }

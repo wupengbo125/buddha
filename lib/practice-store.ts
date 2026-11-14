@@ -8,7 +8,6 @@ import { interactionState } from './practice-interactions';
 export const practiceInput = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(2000).default(''),
-  recitation: z.string().trim().min(1).max(10000),
   prompts: z.array(z.string().max(1000)).max(100),
   target: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
 });
@@ -31,7 +30,7 @@ export interface ContentRow {
   approved_snapshot: string | null;
   published_at: string | null;
 }
-type PracticeRow = ContentRow & { recitation: string; prompts: string; target: number; item_id?: string; personal_total?: number };
+type PracticeRow = ContentRow & { prompts: string; target: number; item_id?: string; personal_total?: number };
 const personalTotalSql = 'COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
 
 export async function atomic(db: D1Database, statements: D1PreparedStatement[]) {
@@ -49,7 +48,7 @@ function common(row: ContentRow) {
 
 export function practiceFromRow(row: PracticeRow): Practice {
   return {
-    ...common(row), recitation: row.recitation, target: row.target, prompts: JSON.parse(row.prompts),
+    ...common(row), target: row.target, prompts: JSON.parse(row.prompts),
     ...(row.item_id ? { item_id: row.item_id } : {}), personal_total: row.personal_total ?? 0,
   };
 }
@@ -68,12 +67,14 @@ export async function ownedContent(db: D1Database, kind: ContentKind, id: string
   if (kind === 'practices') return { ...practiceFromRow(row as PracticeRow), ...interactions, reviews };
   const result = await db.prepare(`SELECT practices.*, i.id AS item_id, ${personalTotalSql} FROM practice_collection_items i JOIN practices ON practices.id = i.practice_id WHERE i.collection_id = ? ORDER BY i.position`).bind(id).all<PracticeRow>();
   const items = (result.results ?? []).map(practiceFromRow);
-  const saved = await db.prepare('SELECT r.id, r.item_index, r.completed, i.count FROM practice_runs r JOIN practice_run_items i ON i.run_id = r.id WHERE r.owner_id = ? AND r.collection_id = ? AND r.is_current = 1 ORDER BY i.item_index')
-    .bind(owner, id).all<{ id: string; item_index: number; completed: number; count: number }>();
+  const saved = await db.prepare('SELECT r.id, i.target, COALESCE(c.total, 0) AS total FROM practice_runs r JOIN practice_run_items i ON i.run_id = r.id LEFT JOIN counters c ON c.id = i.practice_id AND c.device_id = r.owner_id WHERE r.owner_id = ? AND r.collection_id = ? AND r.is_current = 1 ORDER BY i.item_index')
+    .bind(owner, id).all<{ id: string; target: number; total: number }>();
   const savedItems = saved.results ?? [];
+  const counts = savedItems.map((item) => Math.min(item.total, item.target));
+  const nextIndex = savedItems.findIndex((item) => item.total < item.target);
   const progress = savedItems.length ? {
-    id: savedItems[0].id, index: savedItems[0].item_index, completed: Boolean(savedItems[0].completed),
-    counts: savedItems.map((item) => item.count), total: savedItems.reduce((total, item) => total + item.count, 0),
+    id: savedItems[0].id, index: nextIndex < 0 ? savedItems.length - 1 : nextIndex, completed: nextIndex < 0,
+    counts, total: counts.reduce((total, count) => total + count, 0),
   } : null;
   return { ...common(row), ...interactions, items, total_target: items.reduce((total, item) => total + item.target, 0), reviews, progress };
 }
@@ -87,8 +88,8 @@ export async function createPractice(db: D1Database, owner: string, body: unknow
   const input = practiceInput.parse(body);
   const id = ulid();
   const now = new Date().toISOString();
-  await db.prepare('INSERT INTO practices (id, owner_id, name, description, recitation, prompts, target, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, owner, input.name, input.description, input.recitation, JSON.stringify(input.prompts), input.target, now, now).run();
+  await db.prepare('INSERT INTO practices (id, owner_id, name, description, prompts, target, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, owner, input.name, input.description, JSON.stringify(input.prompts), input.target, now, now).run();
   const row = await db.prepare('SELECT * FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner).first<PracticeRow>();
   return practiceFromRow(row!);
 }
@@ -128,8 +129,8 @@ export async function editContent(db: D1Database, kind: ContentKind, id: string,
   if (kind === 'practices') {
     const patch = practiceInput.partial().parse(body);
     const input = practiceInput.parse({ ...current, ...patch });
-    await db.prepare("UPDATE practices SET name = ?, description = ?, recitation = ?, prompts = ?, target = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
-      .bind(input.name, input.description, input.recitation, JSON.stringify(input.prompts), input.target, now, id, owner).run();
+    await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
+      .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, now, id, owner).run();
   } else {
     const patch = collectionInput.partial().parse(body);
     const statements = [db.prepare("UPDATE practice_collections SET name = ?, description = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?").bind(patch.name ?? row.name, patch.description ?? row.description, now, id, owner)];
@@ -164,8 +165,21 @@ export async function deleteContent(db: D1Database, kind: ContentKind, id: strin
     ? (await db.prepare('SELECT r2_key FROM images WHERE counter_id = ?').bind(id).all<{ r2_key: string }>()).results ?? []
     : [];
   const statements = withdrawalStatements(db, kind, id);
+  statements.push(
+    db.prepare('DELETE FROM practice_reviews WHERE kind = ? AND content_id = ?').bind(kind, id),
+    db.prepare('DELETE FROM practice_likes WHERE kind = ? AND content_id = ?').bind(kind, id),
+    db.prepare('DELETE FROM practice_favorites WHERE kind = ? AND content_id = ?').bind(kind, id),
+  );
+  if (kind === 'practices') statements.push(
+    db.prepare('UPDATE practice_sessions SET run_id = NULL, revision = revision + 1 WHERE run_id IN (SELECT run_id FROM practice_run_items WHERE practice_id = ?)').bind(id),
+    db.prepare('DELETE FROM practice_events WHERE run_id IN (SELECT run_id FROM practice_run_items WHERE practice_id = ?)').bind(id),
+    db.prepare('DELETE FROM practice_run_items WHERE run_id IN (SELECT run_id FROM practice_run_items WHERE practice_id = ?)').bind(id),
+    db.prepare("DELETE FROM practice_runs WHERE EXISTS (SELECT 1 FROM json_each(practice_runs.snapshot, '$.items') WHERE json_extract(value, '$.id') = ?)").bind(id),
+    db.prepare('DELETE FROM practice_public_dependencies WHERE practice_id = ?').bind(id),
+  );
   if (kind === 'collections') statements.push(
     db.prepare('UPDATE practice_sessions SET run_id = NULL, revision = revision + 1 WHERE owner_id = ? AND run_id IN (SELECT id FROM practice_runs WHERE collection_id = ? AND owner_id = ?)').bind(owner, id, owner),
+    db.prepare('DELETE FROM practice_events WHERE run_id IN (SELECT id FROM practice_runs WHERE collection_id = ? AND owner_id = ?)').bind(id, owner),
     db.prepare('DELETE FROM practice_run_items WHERE run_id IN (SELECT id FROM practice_runs WHERE collection_id = ? AND owner_id = ?)').bind(id, owner),
     db.prepare('DELETE FROM practice_runs WHERE collection_id = ? AND owner_id = ?').bind(id, owner),
     db.prepare('DELETE FROM practice_collection_items WHERE collection_id = ?').bind(id),

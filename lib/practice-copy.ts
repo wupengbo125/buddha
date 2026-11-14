@@ -34,8 +34,8 @@ export async function copyContent(db: D1Database, kind: ContentKind, sourceId: s
     statements.push(db.prepare(`INSERT INTO practice_collection_items(id, collection_id, practice_id, position) SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.practiceId'), json_extract(value, '$.position') FROM json_each(?) WHERE ${sourceGuard}`)
       .bind(id, JSON.stringify(items), ...guardParams));
   }
-  statements.unshift(db.prepare(`INSERT INTO practices(id, owner_id, name, description, recitation, prompts, target, source_id, source_name, source_owner_id, created_at, updated_at)
-    SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.source.name'), json_extract(value, '$.source.description'), json_extract(value, '$.source.recitation'), json_extract(value, '$.source.prompts'), json_extract(value, '$.source.target'), json_extract(value, '$.source.id'), json_extract(value, '$.source.name'), json_extract(value, '$.source.owner_id'), ?, ? FROM json_each(?) WHERE ${sourceGuard}`)
+  statements.unshift(db.prepare(`INSERT INTO practices(id, owner_id, name, description, prompts, target, source_id, source_name, source_owner_id, created_at, updated_at)
+    SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.source.name'), json_extract(value, '$.source.description'), json_extract(value, '$.source.prompts'), json_extract(value, '$.source.target'), json_extract(value, '$.source.id'), json_extract(value, '$.source.name'), json_extract(value, '$.source.owner_id'), ?, ? FROM json_each(?) WHERE ${sourceGuard}`)
     .bind(owner, now, now, JSON.stringify(practiceCopies), ...guardParams));
   await atomic(db, statements);
   const created = await db.prepare(`SELECT id FROM ${contentTable(kind)} WHERE id = ? AND owner_id = ?`).bind(id, owner).first();

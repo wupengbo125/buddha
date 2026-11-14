@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyServerTotals, createState, newEventId, stateFromCounter, tap } from '@/lib/counter-store';
+import { applyServerSnapshot, applyServerTotals, createState, newEventId, stateFromCounter, tap } from '@/lib/counter-store';
 
 function idMaker() {
   let n = 0;
@@ -25,6 +25,24 @@ describe('显示状态初始化', () => {
       today: 0,
       today_date: '2026-01-02',
     });
+  });
+});
+
+describe('服务端快照', () => {
+  const previous = { total: 12, today: 4, today_date: '2026-01-01' };
+  const reset = { total: 0, today: 4, today_date: '2026-01-01' };
+
+  it('接受重新开始后的累计值并保留今日次数', () => {
+    expect(applyServerSnapshot(previous, reset, '2026-01-01', true, false)).toEqual(reset);
+  });
+
+  it('待确认事件或过期快照不覆盖乐观值', () => {
+    expect(applyServerSnapshot(previous, reset, '2026-01-01', true, true)).toEqual(previous);
+    expect(applyServerSnapshot(previous, reset, '2026-01-01', false, false)).toEqual(previous);
+  });
+
+  it('首次加载时使用服务端快照，确认待同步事件后再校准', () => {
+    expect(applyServerSnapshot(undefined, reset, '2026-01-01', true, true)).toEqual(reset);
   });
 });
 

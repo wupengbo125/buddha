@@ -12,7 +12,6 @@ export interface Practice {
   owner_id: string;
   name: string;
   description: string;
-  recitation: string;
   prompts: string[];
   target: number;
   visibility: PracticeVisibility;

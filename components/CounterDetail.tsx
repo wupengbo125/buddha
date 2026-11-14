@@ -171,9 +171,9 @@ export function CounterDetail({ id }: { id: string }) {
             <span className="count-row-label">声</span>
           </div>
           <form onSubmit={save} onChange={() => setSaved(false)}>
-            <label className="field-label" htmlFor="counter-name">念诵内容</label>
+            <label className="field-label" htmlFor="counter-name">名称</label>
             <input id="counter-name" className="field mb-6" value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} />
-            <label className="field-label" htmlFor="counter-caption">发愿提示</label>
+            <label className="field-label" htmlFor="counter-caption">弹幕</label>
             <input id="counter-caption" className="field mb-6" value={captionText} onChange={(event) => setCaptionText(event.target.value)} placeholder={counter.name} maxLength={200} />
             <div className="section">
               <label className="field-label" htmlFor="caption-mode">字幕时长</label>

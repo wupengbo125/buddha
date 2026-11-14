@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     const statements = [];
     const now = new Date().toISOString();
     if (parsed.data.name !== undefined) {
-      sets.push('recitation = ?');
+      sets.push('name = ?');
       vals.push(parsed.data.name);
     }
     if (parsed.data.caption !== undefined) {

@@ -94,6 +94,29 @@ describe('practice API', () => {
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ id: practice.id, personal_total: 1 }]);
   });
 
+  it('uses the same accumulated count for individual practice and collection progress', async () => {
+    const { practice } = await seed(2);
+    const practices = await import('@/app/api/practices/route');
+    const collections = await import('@/app/api/practice-collections/route');
+    const next = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'next', recitation: 'next', prompts: [], target: 2 })));
+    const collection = await readJson<Collection>(collections.POST(request('practice-collections', 'POST', { name: 'ordered', practiceIds: [practice.id, next.id] })));
+    const singleTaps = await import('@/app/api/counters/[id]/taps/route');
+    const session = await import('@/app/api/practice-session/route');
+    const sessionTaps = await import('@/app/api/practice-session/taps/route');
+    await singleTaps.POST(request(`counters/${practice.id}/taps`, 'POST', {
+      event_id: 'before-collection', delta: 1, date: '2026-11-14',
+    }), { params: Promise.resolve({ id: practice.id }) });
+    const started = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-14', 'POST', {
+      action: 'start', collectionId: collection.id,
+    })));
+    expect(started.active).toMatchObject({ count: 1, items: [{ personal_total: 1 }, { personal_total: 0 }] });
+    const result = await readJson<ActiveSession>(sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', {
+      eventId: 'complete-practice', runId: started.active.id, itemIndex: 0, date: '2026-11-14',
+    })));
+    expect(result.active.index).toBe(1);
+    expect(result.active.items[0].personal_total).toBe(2);
+  });
+
   it('keeps today counts when older taps arrive from either practice entry', async () => {
     const { practice, collection } = await seed(10);
     const counters = await import('@/app/api/counters/route');
@@ -463,7 +486,7 @@ describe('practice API', () => {
     const saved = await readJson<Collection>(collectionRoute.GET(request(`practice-collections/${collection.id}`), { params: Promise.resolve({ id: collection.id }) }));
     expect(saved.progress).toMatchObject({ id: runId, index: 0, completed: false, counts: [1, 0], total: 1 });
     expect((await readJson<PracticeSessionState>(taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', body)))).active).toBeNull();
-    await practiceRoute.PATCH(request(`practices/${practice.id}`, 'PATCH', { recitation: 'new', target: 7 }), { params: Promise.resolve({ id: practice.id }) });
+    await practiceRoute.PATCH(request(`practices/${practice.id}`, 'PATCH', { name: 'new', target: 7 }), { params: Promise.resolve({ id: practice.id }) });
     await collectionRoute.PATCH(request(`practice-collections/${collection.id}`, 'PATCH', { name: 'new name', practiceIds: [] }), { params: Promise.resolve({ id: collection.id }) });
     await action('start', other.collection.id);
     expect((await taps.POST(request('practice-session/taps', 'POST', { ...body, eventId: 'stale' }))).status).toBe(200);
@@ -472,7 +495,7 @@ describe('practice API', () => {
     const resumed = await readJson<ActiveSession>(resumedResponse);
     expect(resumed.active.id).toBe(runId);
     expect(resumed.active.items[0].target).toBe(3);
-    expect(resumed.active.items[0].recitation).toBe('new');
+    expect(resumed.active.items[0].name).toBe('new');
     expect(resumed.active.collection_name).toBe('collection');
     expect(resumed.active.counts).toEqual([2, 0]);
     expect((await action('restart', collection.id)).status).toBe(409);
@@ -543,7 +566,6 @@ describe('practice API', () => {
       state.authenticated = false;
       const publicVersion = await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), publicContext));
       expect(publicVersion.name).toBe('practice');
-      expect(publicVersion.recitation).toBe('recitation');
       expect(publicVersion.personal_total).toBeUndefined();
       expect(publicVersion.reviews).toBeUndefined();
       state.authenticated = true;
@@ -553,11 +575,11 @@ describe('practice API', () => {
     const restoreFailure = moderation.setPracticeModerationAdapter(async () => { throw new Error('offline'); });
     try { expect((await practiceRoute.POST(request(`practices/${practice.id}`, 'POST', { action: 'publish' }), context)).status).toBe(502); }
     finally { restoreFailure(); }
-    expect((await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), publicContext))).recitation).toBe('recitation');
+    expect((await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), publicContext))).name).toBe('practice');
     const own = await readJson<Reviewed<Practice>>(practiceRoute.GET(request(`practices/${practice.id}`), context));
     expect(own.reviews.map((review) => review.status)).toEqual(['approved', 'rejected', 'error']);
     await practiceRoute.POST(request(`practices/${practice.id}`, 'POST', { action: 'publish' }), context);
-    expect((await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), publicContext))).recitation).toBe('unreviewed');
+    expect((await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), publicContext))).name).toBe('draft');
     expect((await collectionRoute.POST(request(`practice-collections/${collection.id}`, 'POST', { action: 'publish' }), { params: Promise.resolve({ id: collection.id }) })).status).toBe(200);
   });
 
@@ -622,9 +644,9 @@ describe('practice API', () => {
     expect(copy.items.every((item) => item.id !== practice.id && item.owner_id === 'reader' && item.visibility === 'private' && item.source_id === practice.id)).toBe(true);
     expect(new Set(copy.items.map((item) => item.item_id)).size).toBe(2);
     expect((await readJson<PracticeSessionState>(session.GET(request('practice-session')))).active).toBeNull();
-    await practiceRoute.PATCH(request(`practices/${single.id}`, 'PATCH', { recitation: 'my text', target: 9 }), { params: Promise.resolve({ id: single.id }) });
+    await practiceRoute.PATCH(request(`practices/${single.id}`, 'PATCH', { name: 'my text', target: 9 }), { params: Promise.resolve({ id: single.id }) });
     state.owner = 'owner';
-    expect((await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), { params: Promise.resolve({ kind: 'practices', id: practice.id }) }))).recitation).toBe('recitation');
+    expect((await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), { params: Promise.resolve({ kind: 'practices', id: practice.id }) }))).name).toBe('practice');
     await practiceRoute.POST(request(`practices/${practice.id}`, 'POST', { action: 'unpublish' }), { params: Promise.resolve({ id: practice.id }) });
     expect((await discover.GET(request(`discover/collections/${collection.id}`), { params: Promise.resolve({ kind: 'collections', id: collection.id }) })).status).toBe(404);
     await collectionRoute.DELETE(request(`practice-collections/${collection.id}`, 'DELETE'), { params: Promise.resolve({ id: collection.id }) });
@@ -632,8 +654,8 @@ describe('practice API', () => {
     state.owner = 'reader';
     expect((await practiceRoute.POST(request(`practices/${practice.id}`, 'POST', { action: 'copy' }), { params: Promise.resolve({ id: practice.id }) })).status).toBe(404);
     const remaining = await readJson<Practice[]>(practices.GET(request('practices')));
-    expect(remaining.find((item) => item.id === single.id)).toMatchObject({ recitation: 'my text', source_name: 'practice', source_owner_id: 'owner' });
-    expect((await readJson<Collection>(collectionRoute.GET(request(`practice-collections/${copy.id}`), { params: Promise.resolve({ id: copy.id }) }))).items.map((item) => item.recitation)).toEqual(['recitation', 'recitation']);
+    expect(remaining.find((item) => item.id === single.id)).toMatchObject({ name: 'my text', source_name: 'practice', source_owner_id: 'owner' });
+    expect((await readJson<Collection>(collectionRoute.GET(request(`practice-collections/${copy.id}`), { params: Promise.resolve({ id: copy.id }) }))).items.map((item) => item.name)).toEqual(['practice', 'practice']);
   });
 
   it('discovers only approved searchable content with stable pages and idempotent likes and reference-only favorites', async () => {
@@ -848,7 +870,7 @@ describe('practice API', () => {
     }));
     expect(response.status).toBe(201);
     const created = await readJson<Practice>(response);
-    expect(created.recitation).toBe('南无观世音菩萨');
+    expect(created.name).toBe('清心');
     expect(created.target).toBe(3);
     expect(created.visibility).toBe('private');
     const list = await GET(new NextRequest('http://localhost/api/practices'));

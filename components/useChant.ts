@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { storageNamespace } from '@/lib/brand';
 import {
+  applyServerSnapshot,
   applyServerTotals,
   createState,
-  stateFromCounter,
   tap,
   type CounterState,
   type TapRequest,
@@ -58,6 +58,8 @@ export function useChant() {
   const retryRef = useRef(new RetryQueue());
   const storageReady = useRef(false);
   const inFlight = useRef(new Set<string>());
+  const refreshSequence = useRef(0);
+  const stateVersion = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionToken = useRef(0);
 
@@ -73,12 +75,8 @@ export function useChant() {
 
   // 服务端响应校正显示（函数式更新，避免闭包拿到旧 state）。
   function reconcile(counterId: string, res: { total: number; today: number; today_date: string }) {
-    setStates((prev) => {
-      const cur = prev[counterId] ?? createState(res.today_date);
-      const next = { ...prev, [counterId]: applyServerTotals(cur, res) };
-      statesRef.current = next;
-      return next;
-    });
+    const cur = statesRef.current[counterId] ?? createState(res.today_date);
+    commitStates({ ...statesRef.current, [counterId]: applyServerTotals(cur, res) });
   }
 
   // 短退避定时重试：失败请求沿用同一 event_id 重发（幂等，不重复累加）。
@@ -101,7 +99,11 @@ export function useChant() {
     try {
       const res = await api.reportTap(counterId, { event_id: req.eventId, date: req.date });
       retryRef.current.remove(req.eventId);
+      stateVersion.current += 1;
       reconcile(counterId, res);
+      if (!retryRef.current.values().some((item) => item.counterId === counterId)) {
+        void refreshCounts().catch(() => undefined);
+      }
     } catch {
       scheduleRetry();
     } finally {
@@ -109,32 +111,20 @@ export function useChant() {
     }
   }
 
-  // 轻量重拉列表：服务端为唯一权威。resetDisplay=true 时按服务端值重建计数显示
-  // （初始化 / 跨零点归零），false 时只同步音效开关等元数据、不动计数显示。
-  // 不引入 pending / localStorage 对账状态机。
-  async function refreshFromServer(resetDisplay: boolean): Promise<void> {
-    const { counters: list } = await api.listCounters();
-    commitCounters(list);
-    if (resetDisplay) {
-      const next: Record<string, CounterState> = {};
-      const date = dateKey(new Date(), settingsRef.current.timeZone);
-      for (const c of list) next[c.id] = stateFromCounter(c, date);
-      commitStates(next);
-    }
-  }
-
   async function refreshCounts(): Promise<void> {
+    const sequence = ++refreshSequence.current;
+    const version = stateVersion.current;
     const { counters: list } = await api.listCounters();
+    if (sequence !== refreshSequence.current) return;
     commitCounters(list);
     const date = dateKey(new Date(), loadSettings().timeZone);
-    setStates((previous) => {
-      const next = { ...previous };
-      for (const counter of list) {
-        next[counter.id] = applyServerTotals(previous[counter.id] ?? stateFromCounter(counter, date), counter);
-      }
-      statesRef.current = next;
-      return next;
-    });
+    const pending = new Set(retryRef.current.values().map((item) => item.counterId));
+    const next = { ...statesRef.current };
+    for (const counter of list) {
+      const state = applyServerSnapshot(next[counter.id], counter, date, version === stateVersion.current, pending.has(counter.id));
+      if (state) next[counter.id] = state;
+    }
+    commitStates(next);
   }
 
   // 初始化：设置 / 计数器列表（服务端权威）。不再有 localStorage 对账 / 补推遗留 pending。
@@ -149,7 +139,7 @@ export function useChant() {
     } catch {
       setError('无法读取待同步敲击，请检查浏览器存储设置');
     }
-    void refreshFromServer(true)
+    void refreshCounts()
       .then(() => { if (storageReady.current) drainRetry(); })
       .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
@@ -167,7 +157,7 @@ export function useChant() {
     let midnightTimer: ReturnType<typeof setTimeout>;
     const armMidnight = () => {
       midnightTimer = setTimeout(() => {
-        void refreshFromServer(true).catch(() => undefined); // 跨零点当日归零显示
+        void refreshCounts().catch(() => undefined);
         armMidnight();
       }, msUntilNextDay(new Date(), settingsRef.current.timeZone));
     };
@@ -198,6 +188,7 @@ export function useChant() {
       setError('无法保存敲击，请检查浏览器存储设置');
       return;
     }
+    stateVersion.current += 1;
     commitStates({ ...statesRef.current, [counter.id]: state });
 
     // 字幕：保持现有行为（文案取计数器字幕，为空取佛号名；时长全局 + 每项目覆盖）。

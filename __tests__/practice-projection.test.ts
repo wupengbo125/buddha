@@ -6,10 +6,10 @@ const initial = {
   date: '2026-11-14', revision: 1, stats: { today: 10, total: 20 },
   active: {
     id: 'run', collection_id: 'collection', collection_name: 'collection',
-    index: 0, completed: false, count: 0, counts: [0, 0], total: 0,
+    index: 0, completed: false, count: 5, counts: [5, 7], total: 12,
     items: [
-      { id: 'first', target: 1, today_total: 2, personal_total: 5 },
-      { id: 'second', target: 2, today_total: 3, personal_total: 7 },
+      { id: 'first', target: 6, today_total: 2, personal_total: 5 },
+      { id: 'second', target: 9, today_total: 3, personal_total: 7 },
     ],
   },
 } as PracticeSessionState;
@@ -20,7 +20,7 @@ describe('practice tap projection', () => {
     const second = projectPracticeTap(first, { runId: 'run', itemIndex: 1, date: '2026-11-14' });
     expect(second).toMatchObject({
       stats: { today: 12, total: 22 },
-      active: { index: 1, count: 1, counts: [1, 1], total: 2, completed: false,
+      active: { index: 1, count: 8, counts: [6, 8], total: 14, completed: false,
         items: [{ today_total: 3, personal_total: 6 }, { today_total: 4, personal_total: 8 }] },
     });
   });

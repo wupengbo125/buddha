@@ -172,7 +172,7 @@ export function PracticeChant({ initial, onStateChange }: { initial: PracticeSes
     }
     if (settings.soundEnabled) playWoodFish();
     vibrateShort(prefersReducedMotion());
-    setCaption({ text: item.prompts[active.count % item.prompts.length] || item.recitation,
+    setCaption({ text: item.prompts[active.count % item.prompts.length] || item.name,
       durationMs: settings.captionMs, token: ++token.current });
     const projected = projectPracticeTap(current.current, event);
     current.current = projected;

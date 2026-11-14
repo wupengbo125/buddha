@@ -21,42 +21,41 @@ interface RunRow {
   id: string;
   collection_id: string;
   snapshot: string;
-  item_index: number;
-  completed: number;
 }
 
 export async function sessionState(db: D1Database, owner: string, date: string, pendingEventIds?: string[]): Promise<PracticeSessionState> {
   const results = await atomic(db, [
     db.prepare('SELECT r.*, s.revision FROM practice_sessions s LEFT JOIN practice_runs r ON r.id = s.run_id AND r.owner_id = s.owner_id WHERE s.owner_id = ?').bind(owner),
-    db.prepare('SELECT i.item_index, i.count FROM practice_run_items i JOIN practice_sessions s ON s.run_id = i.run_id WHERE s.owner_id = ? ORDER BY i.item_index').bind(owner),
     db.prepare('SELECT COALESCE(SUM(total), 0) AS total, COALESCE(SUM(CASE WHEN today_date = ? THEN today ELSE 0 END), 0) AS today FROM counters WHERE device_id = ?').bind(date, owner),
     db.prepare('SELECT id, total, today, today_date FROM counters WHERE device_id = ? AND id IN (SELECT i.practice_id FROM practice_run_items i JOIN practice_sessions s ON s.run_id = i.run_id WHERE s.owner_id = ?)').bind(owner, owner),
-    db.prepare('SELECT id, name, recitation, prompts FROM practices WHERE owner_id = ? AND id IN (SELECT i.practice_id FROM practice_run_items i JOIN practice_sessions s ON s.run_id = i.run_id WHERE s.owner_id = ?)').bind(owner, owner),
+    db.prepare('SELECT id, name, prompts FROM practices WHERE owner_id = ? AND id IN (SELECT i.practice_id FROM practice_run_items i JOIN practice_sessions s ON s.run_id = i.run_id WHERE s.owner_id = ?)').bind(owner, owner),
     db.prepare('SELECT event_id FROM practice_events WHERE owner_id = ? AND event_id IN (SELECT value FROM json_each(?))').bind(owner, JSON.stringify(pendingEventIds ?? [])),
   ]);
   const row = results[0].results?.[0] as (RunRow & { revision: number }) | undefined;
-  const stats = results[2].results?.[0] as { today: number; total: number };
-  const liveRows = new Map((results[4].results as { id: string; name: string; recitation: string; prompts: string }[] | undefined ?? []).map((row) => [row.id, row]));
-  const counterRows = results[3].results as { id: string; total: number; today: number; today_date: string }[] | undefined ?? [];
+  const stats = results[1].results?.[0] as { today: number; total: number };
+  const liveRows = new Map((results[3].results as { id: string; name: string; prompts: string }[] | undefined ?? []).map((row) => [row.id, row]));
+  const counterRows = results[2].results as { id: string; total: number; today: number; today_date: string }[] | undefined ?? [];
   const perPracticeToday = new Map(counterRows.map((item) => [item.id, item.today_date === date ? item.today : 0]));
   const perPracticeTotal = new Map(counterRows.map((item) => [item.id, item.total]));
   let active: Run | null = null;
   if (row?.id) {
     const snapshot = JSON.parse(row.snapshot) as Collection;
-    const counts = (results[1].results as { count: number }[]).map((item) => item.count);
+    const counts = snapshot.items.map((item) => Math.min(perPracticeTotal.get(item.id) ?? 0, item.target));
+    const nextIndex = counts.findIndex((count, index) => count < snapshot.items[index].target);
+    const index = nextIndex < 0 ? counts.length - 1 : nextIndex;
     active = {
       id: row.id, collection_id: row.collection_id, collection_name: snapshot.name,
-      index: row.item_index, completed: Boolean(row.completed), count: counts[row.item_index],
+      index, completed: nextIndex < 0, count: counts[index],
       items: snapshot.items.map((item) => {
         const live = liveRows.get(item.id);
         let prompts = item.prompts;
         if (live) { try { const parsed = JSON.parse(live.prompts) as string[]; prompts = parsed; } catch { prompts = item.prompts; } }
-        return { ...item, name: live?.name ?? item.name, recitation: live?.recitation ?? item.recitation, prompts, today_total: perPracticeToday.get(item.id) ?? 0, personal_total: perPracticeTotal.get(item.id) ?? 0 };
+        return { ...item, name: live?.name ?? item.name, prompts, today_total: perPracticeToday.get(item.id) ?? 0, personal_total: perPracticeTotal.get(item.id) ?? 0 };
       }), counts, total: counts.reduce((total, count) => total + count, 0),
     };
   }
   return { active, stats, revision: row?.revision ?? 0, date,
-    ...(pendingEventIds ? { confirmedEventIds: (results[5].results as { event_id: string }[]).map((event) => event.event_id) } : {}) };
+    ...(pendingEventIds ? { confirmedEventIds: (results[4].results as { event_id: string }[]).map((event) => event.event_id) } : {}) };
 }
 
 const sessionInput = z.object({ action: z.enum(['start', 'pause', 'restart']), collectionId: z.string().min(1).optional() });
@@ -79,7 +78,10 @@ export async function changeSession(db: D1Database, owner: string, body: unknown
   if (!collection.items.length) throw new PracticeError('发愿集不能为空', 409);
   const runId = ulid();
   const statements = [];
-  if (input.action === 'restart') statements.push(db.prepare('UPDATE practice_runs SET is_current = 0 WHERE owner_id = ? AND collection_id = ? AND is_current = 1').bind(owner, collection.id));
+  if (input.action === 'restart') {
+    statements.push(db.prepare('UPDATE practice_runs SET is_current = 0 WHERE owner_id = ? AND is_current = 1 AND (collection_id = ? OR id IN (SELECT run_id FROM practice_run_items WHERE practice_id IN (SELECT practice_id FROM practice_collection_items WHERE collection_id = ?)))').bind(owner, collection.id, collection.id));
+    statements.push(db.prepare('UPDATE counters SET total = 0 WHERE device_id = ? AND id IN (SELECT practice_id FROM practice_collection_items WHERE collection_id = ?)').bind(owner, collection.id));
+  }
   statements.push(db.prepare('INSERT OR IGNORE INTO practice_runs(id, owner_id, collection_id, snapshot, created_at) VALUES (?, ?, ?, ?, ?)').bind(runId, owner, collection.id, JSON.stringify(collection), new Date().toISOString()));
   statements.push(db.prepare("INSERT INTO practice_run_items(run_id, item_index, practice_id, target) SELECT ?, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.target') FROM json_each(?) WHERE EXISTS (SELECT 1 FROM practice_runs WHERE id = ?)").bind(runId, JSON.stringify(collection.items), runId));
   statements.push(db.prepare('INSERT INTO practice_sessions(owner_id, run_id, revision) SELECT ?, id, 1 FROM practice_runs WHERE owner_id = ? AND collection_id = ? AND is_current = 1 ON CONFLICT(owner_id) DO UPDATE SET run_id = excluded.run_id, revision = revision + 1').bind(owner, owner, collection.id));
@@ -101,8 +103,8 @@ export async function practiceTap(db: D1Database, owner: string, body: unknown, 
     committed = result[1].results![0] as typeof committed;
   } catch (error) {
     if (error instanceof Error && error.message.includes('invalid practice event')) {
-      const item = await db.prepare('SELECT r.owner_id, i.practice_id, c.id AS counter_id FROM practice_runs r LEFT JOIN practice_run_items i ON i.run_id = r.id AND i.item_index = ? LEFT JOIN counters c ON c.id = i.practice_id AND c.device_id = r.owner_id WHERE r.id = ?').bind(input.itemIndex, input.runId).first<{ owner_id: string; practice_id: string | null; counter_id: string | null }>();
-      if (!item || (item.owner_id === owner && item.practice_id && !item.counter_id)) throw new PracticeError('发愿或轮次已删除，敲击无法同步', 410);
+      const item = await db.prepare('SELECT r.owner_id, r.is_current, i.practice_id, c.id AS counter_id FROM practice_runs r LEFT JOIN practice_run_items i ON i.run_id = r.id AND i.item_index = ? LEFT JOIN counters c ON c.id = i.practice_id AND c.device_id = r.owner_id WHERE r.id = ?').bind(input.itemIndex, input.runId).first<{ owner_id: string; is_current: number; practice_id: string | null; counter_id: string | null }>();
+      if (!item || (item.owner_id === owner && (!item.is_current || (item.practice_id && !item.counter_id)))) throw new PracticeError('发愿或轮次已删除，敲击无法同步', 410);
       throw new PracticeError('发愿轮次或条目已变化', 409);
     }
     throw error;

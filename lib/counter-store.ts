@@ -30,6 +30,17 @@ export function stateFromCounter(c: { total: number; today: number; today_date: 
   return { total: c.total, today: c.today_date === date ? c.today : 0, today_date: date };
 }
 
+export function applyServerSnapshot(
+  state: CounterState | undefined,
+  counter: { total: number; today: number; today_date: string },
+  date: string,
+  current: boolean,
+  pending: boolean,
+): CounterState | undefined {
+  if (!current || (pending && state)) return state;
+  return stateFromCounter(counter, date);
+}
+
 /**
  * 点按一次：乐观 +1 立即刷新 UI，同时生成本次点击独立的上报请求。
  * 跨零点当日归零、总数累加（与服务端原子 SQL 语义一致）。

@@ -12,7 +12,7 @@ export interface Counter {
   created_at: string;
   updated_at: string;
   title?: string; // 任务标题（发愿名），name 是佛号
-  prompts?: string; // JSON 数组：发愿提示
+  prompts?: string; // JSON 数组：弹幕
 }
 
 export interface TapResult {

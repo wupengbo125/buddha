@@ -18,7 +18,6 @@ interface Editor {
   id?: string;
   name: string;
   description: string;
-  recitation: string;
   target: string;
   prompts: string[];
   practiceIds: string[];
@@ -29,7 +28,6 @@ function makeEditor(item?: PracticeContent): Editor {
     id: item?.id,
     name: item?.name ?? '',
     description: item?.description ?? '',
-    recitation: item && 'recitation' in item ? item.recitation : '',
     target: item && 'target' in item ? String(item.target) : '10000',
     prompts: item && 'prompts' in item ? [...item.prompts] : [],
     practiceIds: item && 'items' in item ? item.items.map((practice) => practice.id) : [],
@@ -133,7 +131,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     try {
       const common = { name: editor.name.trim(), description: editor.description.trim() };
       const body = kind === 'practices'
-        ? { ...common, recitation: editor.recitation.trim(), prompts: editor.prompts.map((prompt) => prompt.trim()).filter(Boolean), target: Number(editor.target) }
+        ? { ...common, prompts: editor.prompts.map((prompt) => prompt.trim()).filter(Boolean), target: Number(editor.target) }
         : { ...common, practiceIds: editor.practiceIds };
       const path = editor.id ? `${endpoint}/${encodeURIComponent(editor.id)}` : endpoint;
       const result = await practiceRequest<PracticeContent>(path, editor.id ? 'PATCH' : 'POST', body);
@@ -239,7 +237,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
       </div>
 
-          {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><p className={styles.recitation}>{practice.recitation}</p><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}><h3 className={styles.meta}>念诵内容</h3><p className={styles.recitation}>{item.recitation}</p>{item.prompts.length > 0 && <><h3 className={styles.meta}>发愿提示</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
+          {expanded === item.id && ('items' in item ? <ol className={styles.sequence}>{item.items.map((practice, index) => <li key={`${practice.id}-${index}`}><span className={styles.number}>{index + 1}</span><div className={styles.grow}><h3>{practice.name}</h3><span className={styles.meta}>{practice.target.toLocaleString()} 次</span></div></li>)}</ol> : <div className={styles.details}>{item.prompts.length > 0 && <><h3 className={styles.meta}>弹幕</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>)}
     </li>
   );
 
@@ -269,11 +267,10 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
             <label className={styles.label} htmlFor="practice-name">名称（必填）<input id="practice-name" className="field" required value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>
             <label className={styles.label} htmlFor="practice-description">简介<textarea id="practice-description" className="field" rows={2} value={editor.description} onChange={(event) => setEditor({ ...editor, description: event.target.value })} /></label>
             {kind === 'practices' ? <>
-              <label className={styles.label} htmlFor="practice-recitation">念诵内容（必填）<textarea id="practice-recitation" className="field" rows={3} required value={editor.recitation} onChange={(event) => setEditor({ ...editor, recitation: event.target.value })} /></label>
               <label className={styles.label} htmlFor="practice-target">目标次数（必填）<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
-              <div><div className={styles.sectionHeading}><h3>发愿提示</h3></div>
+              <div><div className={styles.sectionHeading}><h3>弹幕</h3></div>
                 <ol className={styles.editList}>{editor.prompts.map((prompt, index) => <li key={index} className={styles.editRow}>
-                  <label className={styles.grow}><span className={styles.srOnly}>发愿提示 {index + 1}</span><input className="field" value={prompt} onChange={(event) => setEditor({ ...editor, prompts: editor.prompts.map((value, position) => position === index ? event.target.value : value) })} /></label>
+                  <label className={styles.grow}><span className={styles.srOnly}>弹幕 {index + 1}</span><input className="field" value={prompt} onChange={(event) => setEditor({ ...editor, prompts: editor.prompts.map((value, position) => position === index ? event.target.value : value) })} /></label>
                   <div className={styles.orderButtons}><button type="button" className="icon-button" title={`上移提示 ${index + 1}`} aria-label={`上移提示 ${index + 1}`} disabled={index === 0} onClick={() => setEditor({ ...editor, prompts: moveEntry(editor.prompts, index, -1) })}><ArrowUp size={17} /></button><button type="button" className="icon-button" title={`下移提示 ${index + 1}`} aria-label={`下移提示 ${index + 1}`} disabled={index === editor.prompts.length - 1} onClick={() => setEditor({ ...editor, prompts: moveEntry(editor.prompts, index, 1) })}><ArrowDown size={17} /></button><button type="button" className="icon-button" title={`移除提示 ${index + 1}`} aria-label={`移除提示 ${index + 1}`} onClick={() => setEditor({ ...editor, prompts: editor.prompts.filter((_, position) => position !== index) })}><X size={17} /></button></div>
                 </li>)}</ol>
               </div>
@@ -311,14 +308,12 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         <div className={styles.sheetGrab} />
         <p className={styles.sheetK}>可以做什么</p>
         <h2 className={styles.sheetTitle}>{menu.name}</h2>
-        {'items' in menu
-          ? <button type="button" className={styles.sheetRow} disabled={busy || menu.items.length === 0} onClick={() => { setMenu(null); sessionAction('start', menu.id); }}><Play size={18} />{active?.collection_id === menu.id && active.completed ? '已完成' : '开始'}</button>
-          : <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setMenu(null); startPractice(menu); }}><Play size={18} />开始</button>}
+        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy || menu.items.length === 0} onClick={() => { setMenu(null); sessionAction('start', menu.id); }}><Play size={18} />{active?.collection_id === menu.id && active.completed ? '已完成' : '开始'}</button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
         {!('items' in menu) && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setCollecting(menu); setMenu(null); }}><Bookmark size={18} />加入发愿集<span className={styles.sheetHint}>放进某一集</span></button>}
         {menu.visibility === 'public' && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { share(menu); setMenu(null); }}><Share2 size={18} />复制分享链接<span className={styles.sheetHint}>复制链接</span></button>}
-        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'restart' }); setMenu(null); }}><RotateCcw size={18} />重新开始<span className={styles.sheetHint}>清零本轮进度</span></button>}
+        {'items' in menu && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'restart' }); setMenu(null); }}><RotateCcw size={18} />重新开始<span className={styles.sheetHint}>清零发愿累计</span></button>}
         <button type="button" className={`${styles.sheetRow} ${styles.sheetDanger}`} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'delete' }); setMenu(null); }}><Trash2 size={18} />删除<span className={styles.sheetHint}>不可恢复</span></button>
         <button type="button" className={styles.sheetCancel} onClick={() => setMenu(null)}>取消</button>
       {collecting && <div className={styles.scrim} onClick={() => setCollecting(null)} />}
