@@ -58,7 +58,8 @@ export function ChantClient() {
     <main className="page chant-page">
       <header className="chant-header">
         <span className="chant-brand flex items-center gap-2">
-          {practiceSession?.active && !practiceSession.active.completed ? (practiceSession.active.items[practiceSession.active.index]?.name || practiceSession.active.items[practiceSession.active.index]?.recitation) : (selected?.name || '')}
+          <img src="/wooden-fish.png" width={40} height={40} alt="" />
+          {practiceSession?.active && !practiceSession.active.completed ? (practiceSession.active.items[practiceSession.active.index]?.name || '') : (selected?.title || '')}
         </span>
         <button type="button" className="icon-button" onClick={toggleSound}
           aria-label={soundEnabled ? '关闭全部音效' : '开启全局音效'}
