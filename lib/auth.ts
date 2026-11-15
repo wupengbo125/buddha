@@ -3,8 +3,8 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 
-/** 唯一账号（个人用，无注册 / 多用户）。非品牌词，不进 brand.ts。 */
-export const OWNER_USERNAME = '18592012523';
+/** session 里的固定 subject：账号名不落代码，也不进 token。 */
+export const SESSION_SUBJECT = 'owner';
 /** 去 device_id 隔离后，所有数据写入统一归到此 id，手机 / 电脑登同一账号看到同一份。 */
 export const OWNER_ID = 'owner';
 export const SESSION_COOKIE = 'buddha_session';
@@ -26,9 +26,9 @@ export function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /** 用户名错误与密码错误返回同一个结果，不区分；密码为空一律拒绝。 */
-export function verifyCredentials(username: string, password: string, expectedPassword: string): boolean {
-  if (!expectedPassword) return false;
-  const userOk = timingSafeEqual(username, OWNER_USERNAME);
+export function verifyCredentials(username: string, password: string, expectedPassword: string, expectedUsername: string): boolean {
+  if (!expectedPassword || !expectedUsername) return false;
+  const userOk = timingSafeEqual(username, expectedUsername);
   const passOk = timingSafeEqual(password, expectedPassword);
   return userOk && passOk;
 }
@@ -44,7 +44,7 @@ export async function deriveSecret(password: string): Promise<string> {
 export async function signSession(secret: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(OWNER_USERNAME)
+    .setSubject(SESSION_SUBJECT)
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
     .sign(new TextEncoder().encode(secret));
@@ -54,7 +54,7 @@ export async function signSession(secret: string): Promise<string> {
 export async function verifySession(token: string, secret: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-    if (payload.sub !== OWNER_USERNAME) return null;
+    if (payload.sub !== SESSION_SUBJECT) return null;
     return { sub: payload.sub };
   } catch {
     return null;

@@ -3,7 +3,7 @@ import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 import {
   OWNER_ID,
-  OWNER_USERNAME,
+  SESSION_SUBJECT,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   deriveSecret,
@@ -15,26 +15,27 @@ import {
 import { imageUrlFor } from '@/lib/image-access';
 
 const PW = 'aB3-xY9!zQ7';
+const USER = 'tester-account';
 
 describe('密码校验（常量时间比较；用户名错 / 密码错同一个通用结果）', () => {
   it('正确账号 + 正确密码 → 通过', () => {
-    expect(verifyCredentials(OWNER_USERNAME, PW, PW)).toBe(true);
+    expect(verifyCredentials(USER, PW, PW, USER)).toBe(true);
   });
 
   it('密码错误 → 拒绝（对应登录 401）', () => {
-    expect(verifyCredentials(OWNER_USERNAME, 'wrong', PW)).toBe(false);
+    expect(verifyCredentials(USER, 'wrong', PW, USER)).toBe(false);
   });
 
   it('用户名错误 → 拒绝，且与密码错误不区分（都 false）', () => {
-    const badUser = verifyCredentials('someone-else', PW, PW);
-    const badPass = verifyCredentials(OWNER_USERNAME, 'wrong', PW);
+    const badUser = verifyCredentials('someone-else', PW, PW, USER);
+    const badPass = verifyCredentials(USER, 'wrong', PW, USER);
     expect(badUser).toBe(false);
     expect(badUser).toBe(badPass);
   });
 
   it('未配置密码（空）→ 一律拒绝', () => {
-    expect(verifyCredentials(OWNER_USERNAME, PW, '')).toBe(false);
-    expect(verifyCredentials(OWNER_USERNAME, '', '')).toBe(false);
+    expect(verifyCredentials(USER, PW, '', USER)).toBe(false);
+    expect(verifyCredentials(USER, '', '', USER)).toBe(false);
   });
 
   it('timingSafeEqual：相等 true，内容 / 长度不同 false', () => {
@@ -65,7 +66,7 @@ describe('session 签发 / 校验', () => {
     const secret = await deriveSecret(PW);
     const token = await signSession(secret);
     const payload = await verifySession(token, secret);
-    expect(payload).toEqual({ sub: OWNER_USERNAME });
+    expect(payload).toEqual({ sub: SESSION_SUBJECT });
   });
 
   it('守卫判定：未登录 401 / 登录后放行（纯逻辑映射）', async () => {
@@ -97,7 +98,7 @@ describe('session 签发 / 校验', () => {
     const secret = await deriveSecret(PW);
     const expired = await new SignJWT({})
       .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(OWNER_USERNAME)
+      .setSubject(SESSION_SUBJECT)
       .setIssuedAt(Math.floor(Date.now() / 1000) - 100)
       .setExpirationTime(Math.floor(Date.now() / 1000) - 10)
       .sign(new TextEncoder().encode(secret));
@@ -130,6 +131,6 @@ describe('去掉 device_id 后跨请求数据一致', () => {
     const s1 = await deriveSecret(PW);
     const s2 = await deriveSecret(PW);
     const token = await signSession(s1);
-    expect(await verifySession(token, s2)).toEqual({ sub: OWNER_USERNAME });
+    expect(await verifySession(token, s2)).toEqual({ sub: SESSION_SUBJECT });
   });
 });

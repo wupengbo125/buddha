@@ -45,6 +45,22 @@ export async function verifyToken(token: string | undefined): Promise<boolean> {
   }
 }
 
+/** 读取账号名：同样只从 Cloudflare secret / 本地环境变量来，代码里不写死。 */
+export function getUsername(): string {
+  let cfUsername: string | undefined;
+  try {
+    const env = getCloudflareContext().env as unknown as { common_username?: string } | undefined;
+    cfUsername = env?.common_username;
+  } catch {
+    // 不在 Cloudflare 运行时：回退本地环境变量
+  }
+  const username = cfUsername || process.env.common_username;
+  if (!username) {
+    throw new Error('common_username 未配置：请在 Cloudflare Worker secret 或本地环境变量中设置');
+  }
+  return username;
+}
+
 /** 请求是否携带有效 session。 */
 export async function readSession(req: NextRequest): Promise<boolean> {
   return verifyToken(req.cookies.get(SESSION_COOKIE)?.value);

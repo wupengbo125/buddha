@@ -3,20 +3,28 @@
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getPassword, readSession, verifyToken, createSession } from '@/lib/session';
-import { OWNER_USERNAME, deriveSecret, signSession } from '@/lib/auth';
+import { SESSION_SUBJECT, deriveSecret, signSession } from '@/lib/auth';
 import { POST as login } from '@/app/api/auth/login/route';
 
 const PW = 'test-only-pw-2026';
 const COOKIE = 'buddha_session';
+const USERNAME = 'tester-account';
 const ORIGINAL = process.env.common_password;
+const ORIGINAL_USER = process.env.common_username;
 
 function setPassword(v: string | undefined): void {
   if (v === undefined) delete process.env.common_password;
   else process.env.common_password = v;
 }
 
+function setUsername(v: string | undefined): void {
+  if (v === undefined) delete process.env.common_username;
+  else process.env.common_username = v;
+}
+
 afterEach(() => {
   setPassword(ORIGINAL);
+  setUsername(ORIGINAL_USER);
   vi.unstubAllEnvs();
 });
 
@@ -49,21 +57,23 @@ describe('R1 · getPassword fail-closed', () => {
 describe('R1 · 登录 API 密码缺失 → 500，不生成 session', () => {
   it('未配置密码，即使用正确账号密码也不能登录', async () => {
     setPassword(undefined);
-    const res = await login(loginRequest({ username: OWNER_USERNAME, password: PW }));
+    const res = await login(loginRequest({ username: USERNAME, password: PW }));
     expect(res.status).toBe(500);
     expect(res.cookies.get(COOKIE)).toBeUndefined();
   });
 
   it('错误密码 → 401（有密码配置时）', async () => {
     setPassword(PW);
-    const res = await login(loginRequest({ username: OWNER_USERNAME, password: 'wrong' }));
+    setUsername(USERNAME);
+    const res = await login(loginRequest({ username: USERNAME, password: 'wrong' }));
     expect(res.status).toBe(401);
     expect(res.cookies.get(COOKIE)).toBeUndefined();
   });
 
   it('正确账号 + 正确密码 → 200 且设置 session cookie', async () => {
     setPassword(PW);
-    const res = await login(loginRequest({ username: OWNER_USERNAME, password: PW }));
+    setUsername(USERNAME);
+    const res = await login(loginRequest({ username: USERNAME, password: PW }));
     expect(res.status).toBe(200);
     expect(res.cookies.get(COOKIE)?.value).toBeTruthy();
   });
@@ -72,6 +82,7 @@ describe('R1 · 登录 API 密码缺失 → 500，不生成 session', () => {
 describe('本地评估账号', () => {
   it('仅在明确启用的开发环境中允许登录', async () => {
     setPassword(PW);
+    setUsername(USERNAME);
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('UI_REVIEW', '1');
     const res = await login(loginRequest({ username: 'abc', password: 'abc' }));
@@ -81,6 +92,7 @@ describe('本地评估账号', () => {
 
   it('默认环境及生产环境拒绝测试账号', async () => {
     setPassword(PW);
+    setUsername(USERNAME);
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('UI_REVIEW', '');
     expect((await login(loginRequest({ username: 'abc', password: 'abc' }))).status).toBe(401);

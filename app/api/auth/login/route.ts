@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifyCredentials } from '@/lib/auth';
-import { getPassword, createSession, setSessionCookie } from '@/lib/session';
+import { getPassword, getUsername, createSession, setSessionCookie } from '@/lib/session';
 import { jsonError } from '@/lib/http';
 
 const Body = z.object({ username: z.string(), password: z.string() });
@@ -11,8 +11,10 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return jsonError('输入无效', 400);
 
   let password: string;
+  let username: string;
   try {
     password = getPassword();
+    username = getUsername();
   } catch {
     // 密码未配置：fail-closed，明确报错，绝不生成 session、绝不静默降级。
     return jsonError('服务端未配置登录密码，请联系管理员', 500);
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
     && parsed.data.username === 'abc'
     && parsed.data.password === 'abc';
 
-  if (!isReviewLogin && !verifyCredentials(parsed.data.username, parsed.data.password, password)) {
+  if (!isReviewLogin && !verifyCredentials(parsed.data.username, parsed.data.password, password, username)) {
     // 用户名错 / 密码错：同一个通用错误，不区分。
     return jsonError('账号或密码错误', 401);
   }
