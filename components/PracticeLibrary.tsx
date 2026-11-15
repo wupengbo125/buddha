@@ -29,7 +29,7 @@ interface Editor {
   targetKind: 'count' | 'time';
   minutes: string;
   idle: string;
-  min: string;
+  min: string;
   prompts: string[];
   practiceIds: string[];
 }
@@ -43,7 +43,9 @@ function makeEditor(item?: PracticeContent): Editor {
     targetKind: item && 'targetKind' in item && item.targetKind === 'time' ? 'time' : 'count',
     minutes: item && 'targetSeconds' in item && item.targetSeconds ? String(Math.round(item.targetSeconds / 60)) : '60',
     idle: item && 'idleSeconds' in item ? String(item.idleSeconds || 10) : '10',
-    min: item && 'minSeconds' in item ? String(Math.round((item.minSeconds || 300) / 60)) : '5',
+    min: item && 'minSeconds' in item
+      ? (item.targetKind === 'time' ? String(Math.round((item.minSeconds || 300) / 60)) : String(item.minSeconds || 100))
+      : '5',
     prompts: item && 'prompts' in item ? [...item.prompts] : [],
     practiceIds: item && 'items' in item ? item.items.map((practice) => practice.id) : [],
   };
@@ -152,7 +154,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
         ? { ...common, prompts: editor.prompts.map((prompt) => prompt.trim()).filter(Boolean), target: Number(editor.target),
             targetKind: editor.targetKind, targetSeconds: editor.targetKind === 'time' ? Math.round(Number(editor.minutes) * 60) : 0,
             idleSeconds: Math.min(60, Math.max(1, Number(editor.idle) || 10)),
-            minSeconds: Math.max(1, Math.round((Number(editor.min) || 5) * 60)) }
+            minSeconds: editor.targetKind === 'count' ? Math.max(1, Math.round(Number(editor.min) || 100)) : Math.max(1, Math.round((Number(editor.min) || 5) * 60)) }
         : { ...common, practiceIds: editor.practiceIds };
       const path = editor.id ? `${endpoint}/${encodeURIComponent(editor.id)}` : endpoint;
       const result = await practiceRequest<PracticeContent>(path, editor.id ? 'PATCH' : 'POST', body);
@@ -309,7 +311,12 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
                 <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'time' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'time' })}>时长</button>
               </div>
               {editor.targetKind === 'count'
-                ? <label className={styles.label} htmlFor="practice-target">目标次数（必填）<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
+                ? <div className={styles.timeFields}>
+                    <label className={styles.label} htmlFor="practice-target">目标次数（必填）<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
+                    <label className={styles.label} htmlFor="practice-idle-count">超时（秒）<input id="practice-idle-count" className="field" type="number" min="1" max="60" step="1" required inputMode="numeric" value={editor.idle} onChange={(event) => setEditor({ ...editor, idle: event.target.value })} /></label>
+                    <label className={styles.label} htmlFor="practice-min-count">最少坚持（声）<input id="practice-min-count" className="field" type="number" min="1" max="10000" step="1" required inputMode="numeric" value={editor.min} onChange={(event) => setEditor({ ...editor, min: event.target.value })} /></label>
+                    <p className={styles.meta}>超过这么久没有敲击，就认为人不在，本次累计作废、停止计数；再敲一下重新开始。本地攒满「最少坚持」之后，每满这么多声才上报一次；没攒满就离开，本地数据直接作废。</p>
+                  </div>
                 : <div className={styles.timeFields}>
                     <label className={styles.label} htmlFor="practice-minutes">目标时长（分钟）<input id="practice-minutes" className="field" type="number" min="1" max="10080" step="1" required inputMode="numeric" value={editor.minutes} onChange={(event) => setEditor({ ...editor, minutes: event.target.value })} /></label>
                     <label className={styles.label} htmlFor="practice-idle">超时时长（秒）<input id="practice-idle" className="field" type="number" min="1" max="60" step="1" required inputMode="numeric" value={editor.idle} onChange={(event) => setEditor({ ...editor, idle: event.target.value })} /></label>

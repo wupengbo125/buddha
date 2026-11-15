@@ -115,8 +115,9 @@ export function ChantClient() {
   const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
   const baseToday = state?.today ?? 0;
   const baseTotal = state?.total ?? 0;
-  const TAP_BATCH = 100;
+  // 阈值与时长模式同一个参数：时长=最少坚持秒数，次数=最少坚持声数。
   const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
+  const tapBatch = Math.max(1, selected?.min_seconds ?? 100);
 
   const dateNow = () => {
     const local = new Date();
@@ -147,7 +148,7 @@ export function ChantClient() {
 
   const chant = useChantSession({
     idleSeconds,
-    threshold: isTime ? minSeconds : TAP_BATCH,
+    threshold: isTime ? minSeconds : tapBatch,
     counted: !isTime,
     onBatch: (batch) => (isTime ? reportMinutes(batch) : reportTaps(batch)),
   });

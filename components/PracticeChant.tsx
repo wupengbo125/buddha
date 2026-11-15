@@ -158,9 +158,9 @@ export function PracticeChant({ initial, onStateChange }: { initial: PracticeSes
   const run = session.active;
   if (!run) return null;
   const practice = run.items[run.index];
-  // 次数模式会话骨架：与时长模式同构——超时清零、攒满 100 声上报一批、零头作废。
+  // 次数模式会话骨架：与时长模式同构——超时清零、攒满「最少坚持」声数上报一批、零头作废。
   const idleSeconds = Math.min(60, Math.max(1, practice?.idleSeconds ?? 10));
-  const TAP_BATCH = 100;
+  const tapBatch = Math.max(1, practice?.minSeconds ?? 100);
   const sendBatch = (batch: number) => {
     const active = current.current.active;
     if (!active || active.completed) return;
@@ -179,7 +179,7 @@ export function PracticeChant({ initial, onStateChange }: { initial: PracticeSes
     onStateChange(projected);
     void flush();
   };
-  const chant = useChantSession({ idleSeconds, threshold: TAP_BATCH, counted: true, onBatch: sendBatch });
+  const chant = useChantSession({ idleSeconds, threshold: tapBatch, counted: true, onBatch: sendBatch });
 
   const tap = () => {
     const active = current.current.active;
