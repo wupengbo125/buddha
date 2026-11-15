@@ -14,16 +14,15 @@ import { useChant } from './useChant';
 import { PracticeChant } from './PracticeChant';
 import type { PracticeSessionState } from '@/lib/practice-types';
 
-function ms(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+// 时间模式统一按整分钟展示，不带冒号：本次 X 分，今日/累计 X 分（满 60 分进成 X 时 X 分）。
+function mins(seconds: number): string {
+  return `${Math.floor(Math.max(0, seconds) / 60)} 分`;
 }
 
 function hm(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  const total = Math.max(0, Math.floor(seconds / 60));
+  const hours = Math.floor(total / 60);
+  return hours > 0 ? `${hours} 时 ${total % 60} 分` : `${total} 分`;
 }
 
 export function ChantClient() {
@@ -238,9 +237,9 @@ export function ChantClient() {
               }} />
             </div>
             {isTime ? (
-              <div className={`count-row ${paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${ms(sessionSeconds)}，今日 ${hm(baseToday)}，累计 ${hm(baseTotal)}`}>
+              <div className={`count-row ${paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${mins(sessionSeconds)}，今日 ${hm(baseToday)}，累计 ${hm(baseTotal)}`}>
                 <span className="count-row-label">本次</span>
-                <span className="count-row-num count-row-today">{ms(sessionSeconds)}</span>
+                <span className="count-row-num count-row-today">{mins(sessionSeconds)}</span>
                 <span className="count-row-sub">今日 {hm(baseToday)} · 累计 {hm(baseTotal)}</span>
               </div>
             ) : (
