@@ -13,6 +13,8 @@ export const practiceInput = z.object({
   targetKind: z.enum(['count', 'time']).default('count'),
   targetSeconds: z.number().int().min(60).max(604800).default(3600),
   idleSeconds: z.number().int().min(1).max(60).default(10),
+  minSeconds: z.number().int().min(60).max(36000).default(300),
+  penaltySeconds: z.number().int().min(0).max(36000).default(120),
 });
 
 export type ContentKind = 'practices' | 'collections';
@@ -33,7 +35,7 @@ export interface ContentRow {
   approved_snapshot: string | null;
   published_at: string | null;
 }
-type PracticeRow = ContentRow & { prompts: string; target: number; target_kind?: string; target_seconds?: number; idle_seconds?: number; item_id?: string; personal_total?: number; today_total?: number; };
+type PracticeRow = ContentRow & { prompts: string; target: number; target_kind?: string; target_seconds?: number; idle_seconds?: number; min_seconds?: number; penalty_seconds?: number; item_id?: string; personal_total?: number; today_total?: number; };
 const personalTotalSql = 'COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
 const todayTotalSql = 'COALESCE((SELECT CASE WHEN today_date = ? THEN today ELSE 0 END FROM counters WHERE id = practices.id), 0) AS today_total';
 
@@ -62,6 +64,7 @@ export function practiceFromRow(row: PracticeRow): Practice {
     ...common(row), target: row.target, prompts: parsePrompts(row.prompts),
     targetKind: (row.target_kind === 'time' ? 'time' : 'count') as 'count' | 'time',
     targetSeconds: row.target_seconds ?? 0, idleSeconds: row.idle_seconds ?? 10,
+    minSeconds: row.min_seconds ?? 300, penaltySeconds: row.penalty_seconds ?? 120,
     ...(row.item_id ? { item_id: row.item_id } : {}), personal_total: row.personal_total ?? 0,
     today_total: row.today_total ?? 0,
   };
@@ -102,8 +105,8 @@ export async function createPractice(db: D1Database, owner: string, body: unknow
   const input = practiceInput.parse(body);
   const id = ulid();
   const now = new Date().toISOString();
-  await db.prepare('INSERT INTO practices (id, owner_id, name, description, prompts, target, target_kind, target_seconds, idle_seconds, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, owner, input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, now, now).run();
+  await db.prepare('INSERT INTO practices (id, owner_id, name, description, prompts, target, target_kind, target_seconds, idle_seconds, min_seconds, penalty_seconds, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, owner, input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, input.minSeconds, input.penaltySeconds, now, now).run();
   const row = await db.prepare('SELECT * FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner).first<PracticeRow>();
   return practiceFromRow(row!);
 }
@@ -143,8 +146,8 @@ export async function editContent(db: D1Database, kind: ContentKind, id: string,
   if (kind === 'practices') {
     const patch = practiceInput.partial().parse(body);
     const input = practiceInput.parse({ ...current, ...patch });
-    await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, target_kind = ?, target_seconds = ?, idle_seconds = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
-      .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, now, id, owner).run();
+    await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, target_kind = ?, target_seconds = ?, idle_seconds = ?, min_seconds = ?, penalty_seconds = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
+      .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, input.minSeconds, input.penaltySeconds, now, id, owner).run();
   } else {
     const patch = collectionInput.partial().parse(body);
     const statements = [db.prepare("UPDATE practice_collections SET name = ?, description = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?").bind(patch.name ?? row.name, patch.description ?? row.description, now, id, owner)];

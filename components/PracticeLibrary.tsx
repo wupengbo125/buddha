@@ -29,6 +29,8 @@ interface Editor {
   targetKind: 'count' | 'time';
   minutes: string;
   idle: string;
+  min: string;
+  penalty: string;
   prompts: string[];
   practiceIds: string[];
 }
@@ -42,6 +44,8 @@ function makeEditor(item?: PracticeContent): Editor {
     targetKind: item && 'targetKind' in item && item.targetKind === 'time' ? 'time' : 'count',
     minutes: item && 'targetSeconds' in item && item.targetSeconds ? String(Math.round(item.targetSeconds / 60)) : '60',
     idle: item && 'idleSeconds' in item ? String(item.idleSeconds || 10) : '10',
+    min: item && 'minSeconds' in item ? String(Math.round((item.minSeconds || 300) / 60)) : '5',
+    penalty: item && 'penaltySeconds' in item ? String(Math.round((item.penaltySeconds ?? 120) / 60)) : '2',
     prompts: item && 'prompts' in item ? [...item.prompts] : [],
     practiceIds: item && 'items' in item ? item.items.map((practice) => practice.id) : [],
   };
@@ -149,7 +153,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
       const body = kind === 'practices'
         ? { ...common, prompts: editor.prompts.map((prompt) => prompt.trim()).filter(Boolean), target: Number(editor.target),
             targetKind: editor.targetKind, targetSeconds: editor.targetKind === 'time' ? Math.round(Number(editor.minutes) * 60) : 0,
-            idleSeconds: Math.min(60, Math.max(1, Number(editor.idle) || 10)) }
+            idleSeconds: Math.min(60, Math.max(1, Number(editor.idle) || 10)),
+            minSeconds: Math.max(1, Math.round((Number(editor.min) || 5) * 60)),
+            penaltySeconds: Math.max(0, Math.round((Number(editor.penalty) || 0) * 60)) }
         : { ...common, practiceIds: editor.practiceIds };
       const path = editor.id ? `${endpoint}/${encodeURIComponent(editor.id)}` : endpoint;
       const result = await practiceRequest<PracticeContent>(path, editor.id ? 'PATCH' : 'POST', body);
@@ -310,7 +316,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
                 : <div className={styles.timeFields}>
                     <label className={styles.label} htmlFor="practice-minutes">目标时长（分钟）<input id="practice-minutes" className="field" type="number" min="1" max="10080" step="1" required inputMode="numeric" value={editor.minutes} onChange={(event) => setEditor({ ...editor, minutes: event.target.value })} /></label>
                     <label className={styles.label} htmlFor="practice-idle">超时时长（秒）<input id="practice-idle" className="field" type="number" min="1" max="60" step="1" required inputMode="numeric" value={editor.idle} onChange={(event) => setEditor({ ...editor, idle: event.target.value })} /></label>
-                    <p className={styles.meta}>超过这么久没有敲击，就认为人不在，计时自动停住；再敲一下继续。</p>
+                    <label className={styles.label} htmlFor="practice-min">最少坚持（分钟）<input id="practice-min" className="field" type="number" min="1" max="600" step="1" inputMode="numeric" value={editor.min} onChange={(event) => setEditor({ ...editor, min: event.target.value })} /></label>
+                    <label className={styles.label} htmlFor="practice-penalty">没到就退出扣（分钟）<input id="practice-penalty" className="field" type="number" min="0" max="600" step="1" inputMode="numeric" value={editor.penalty} onChange={(event) => setEditor({ ...editor, penalty: event.target.value })} /></label>
+                    <p className={styles.meta}>超过这么久没有敲击，就认为人不在，计时自动停住；再敲一下继续。没到「最少坚持」就离开，按设定的时长从今日和累计里扣掉，扣到 0 为止。</p>
                   </div>}
               <div><div className={styles.sectionHeading}><h3>弹幕</h3></div>
                 <ol className={styles.editList}>{editor.prompts.map((prompt, index) => <li key={index} className={styles.editRow}>

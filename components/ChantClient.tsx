@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Volume2, VolumeX } from 'lucide-react';
 import { createState } from '@/lib/counter-store';
 import { siteName, storageNamespace } from '@/lib/brand';
@@ -101,6 +101,9 @@ export function ChantClient() {
     }
   }, []);
 
+  // 惩罚：进入时长模式后第一次敲击记为本次「坚持」起点；没到最少坚持就离开，服务端扣时。
+  const startedAtRef = useRef<number | null>(null);
+  const leaveSentRef = useRef(false);
   const selected = counters.find((counter) => counter.id === selectedId) ?? counters[0];
   const state = selected ? states[selected.id] ?? createState('') : null;
 
@@ -116,6 +119,21 @@ export function ChantClient() {
     const timer = setInterval(() => setTick((value) => Math.min(idleSeconds, value + 1)), 1000);
     return () => clearInterval(timer);
   }, [isTime, idleSeconds, selected?.id]);
+
+  useEffect(() => {
+    const send = () => {
+      if (!selected || !isTime || startedAtRef.current === null || leaveSentRef.current) return;
+      leaveSentRef.current = true;
+      const local = new Date();
+      const date = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+      const body = JSON.stringify({ event_id: `leave-${startedAtRef.current}`, started_at: new Date(startedAtRef.current).toISOString(), date });
+      const url = `/api/counters/${selected.id}/leave`;
+      if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+      else fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => undefined);
+    };
+    window.addEventListener('pagehide', send);
+    return () => { window.removeEventListener('pagehide', send); send(); };
+  }, [isTime, selected?.id]);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -152,7 +170,11 @@ export function ChantClient() {
               <div className="chant-caption" aria-live="off">
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
-              <WoodenFish onTap={() => { setTick(0); handleTap(selected); }} />
+              <WoodenFish onTap={() => {
+                if (isTime && startedAtRef.current === null) startedAtRef.current = Date.now();
+                setTick(0);
+                handleTap(selected);
+              }} />
             </div>
             {isTime ? (
               <div className={`count-row ${tick >= idleSeconds ? 'count-row-paused' : ''}`} aria-label={`今日 ${hm(baseToday + tick)}，累计 ${hm(baseTotal + tick)}`}>

@@ -17,6 +17,8 @@ export interface Counter {
   target_kind?: 'count' | 'time';
   target_seconds?: number;
   idle_seconds?: number;
+  min_seconds?: number;
+  penalty_seconds?: number;
 }
 
 export interface TapResult {
