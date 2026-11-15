@@ -101,9 +101,6 @@ export function ChantClient() {
     }
   }, []);
 
-  // 惩罚：进入时长模式后第一次敲击记为本次「坚持」起点；没到最少坚持就离开，服务端扣时。
-  const startedAtRef = useRef<number | null>(null);
-  const leaveSentRef = useRef(false);
   const selected = counters.find((counter) => counter.id === selectedId) ?? counters[0];
   const state = selected ? states[selected.id] ?? createState('') : null;
 
@@ -113,27 +110,78 @@ export function ChantClient() {
   const baseToday = state?.today ?? 0;
   const baseTotal = state?.total ?? 0;
   const [tick, setTick] = useState(idleSeconds);
+  const [pending, setPending] = useState(0);
+  const session = useRef<{ streak: number; pending: number; sent: number; minute: number; anchor: number; lastTap: number }>({ streak: 0, pending: 0, sent: 0, minute: 0, anchor: Date.now(), lastTap: Date.now() });
+  const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
+
+  const reportMinutes = (minutes: number) => {
+    if (!selected || minutes <= 0) return;
+    session.current.minute += 1;
+    const local = new Date();
+    const date = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+    const eventId = `min-${selected.id}-${session.current.minute}-${Date.now()}`;
+    void fetch(`/api/counters/${selected.id}/minutes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, minutes, date }),
+    })
+      .then((res) => { if (res.ok) void refreshCounts(); })
+      .catch(() => undefined);
+  };
+
+  // 全部用时间戳：不靠累加秒数，切后台、休眠回来都能算出真实间隔。
   useEffect(() => {
     setTick(isTime ? idleSeconds : 0);
+    const at = Date.now();
+    session.current = { streak: 0, pending: 0, sent: 0, minute: 0, anchor: at, lastTap: at };
+    setPending(0);
     if (!isTime) return;
-    const timer = setInterval(() => setTick((value) => Math.min(idleSeconds, value + 1)), 1000);
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const gap = (now - session.current.anchor) / 1000;
+      session.current.anchor = now;
+      if (gap > idleSeconds) {
+        // 超时：本次没上报的零头整段丢弃，画面退回已上报的值。
+        session.current.streak = 0;
+        if (session.current.pending > 0) {
+          session.current.pending = 0;
+          setPending(0);
+        }
+        setTick(idleSeconds);
+        return;
+      }
+      session.current.streak += gap;
+      session.current.pending += gap;
+      setTick(Math.min(idleSeconds, (now - session.current.lastTap) / 1000));
+      setPending(session.current.pending);
+      if (session.current.streak >= minSeconds) {
+        const minutes = Math.floor(session.current.pending / 60);
+        if (minutes >= 1) {
+          session.current.pending -= minutes * 60;
+          session.current.sent += minutes * 60;
+          setPending(session.current.pending);
+          reportMinutes(minutes);
+        }
+      }
+    }, 1000);
     return () => clearInterval(timer);
-  }, [isTime, idleSeconds, selected?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTime, idleSeconds, minSeconds, selected?.id]);
 
+  // 页面被隐藏 / 关闭：未上报的本地累计直接作废。
   useEffect(() => {
-    const send = () => {
-      if (!selected || !isTime || startedAtRef.current === null || leaveSentRef.current) return;
-      leaveSentRef.current = true;
-      const local = new Date();
-      const date = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
-      const body = JSON.stringify({ event_id: `leave-${startedAtRef.current}`, started_at: new Date(startedAtRef.current).toISOString(), date });
-      const url = `/api/counters/${selected.id}/leave`;
-      if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-      else fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => undefined);
+    const drop = () => {
+      session.current.streak = 0;
+      session.current.pending = 0;
+      session.current.anchor = Date.now();
+      setPending(0);
+      setTick(idleSeconds);
     };
-    window.addEventListener('pagehide', send);
-    return () => { window.removeEventListener('pagehide', send); send(); };
-  }, [isTime, selected?.id]);
+    const onHidden = () => { if (document.visibilityState === 'hidden') drop(); };
+    window.addEventListener('pagehide', drop);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => { window.removeEventListener('pagehide', drop); document.removeEventListener('visibilitychange', onHidden); };
+  }, [idleSeconds]);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -171,18 +219,34 @@ export function ChantClient() {
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
               <WoodenFish onTap={() => {
-                if (isTime && startedAtRef.current === null) startedAtRef.current = Date.now();
+                if (isTime) {
+                  const now = Date.now();
+                  session.current.lastTap = now;
+                  const gap = (now - session.current.anchor) / 1000;
+                  session.current.anchor = now;
+                  if (gap > idleSeconds) {
+                    session.current.streak = 0;
+                    if (session.current.pending > 0) {
+                      session.current.pending = 0;
+                      setPending(0);
+                    }
+                  } else {
+                    session.current.streak += gap;
+                    session.current.pending += gap;
+                    setPending(session.current.pending);
+                  }
+                }
                 setTick(0);
                 handleTap(selected);
               }} />
             </div>
             {isTime ? (
-              <div className={`count-row ${tick >= idleSeconds ? 'count-row-paused' : ''}`} aria-label={`今日 ${hm(baseToday + tick)}，累计 ${hm(baseTotal + tick)}`}>
+              <div className={`count-row ${tick >= idleSeconds ? 'count-row-paused' : ''}`} aria-label={`今日 ${hm(baseToday + pending)}，累计 ${hm(baseTotal + pending)}`}>
                 <span className="count-row-label">今日</span>
-                <span className="count-row-num count-row-today">{hm(baseToday + tick)}</span>
+                <span className="count-row-num count-row-today">{hm(baseToday + pending)}</span>
                 <span className="count-row-sep">/</span>
                 <span className="count-row-label">累计</span>
-                <span className="count-row-num count-row-total">{hm(baseTotal + tick)}</span>
+                <span className="count-row-num count-row-total">{hm(baseTotal + pending)}</span>
               </div>
             ) : (
               <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
@@ -194,7 +258,7 @@ export function ChantClient() {
                 <span className="count-row-label">声</span>
               </div>
             )}
-            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal + tick)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((baseTotal + tick) / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
+            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal + pending)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((baseTotal + pending) / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
             : !isTime && selected.target ? <div className="count-progress" aria-label={`累计 ${state?.total ?? 0} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((state?.total ?? 0) / selected.target) * 100)}%` }} /></div></div> : null}
           </div>
         </>
