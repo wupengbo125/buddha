@@ -109,7 +109,7 @@ export function ChantClient() {
   const selected = counters.find((counter) => counter.id === selectedId) ?? counters[0];
   const state = selected ? states[selected.id] ?? createState('') : null;
 
-  // 时长模式：本地只负责让秒针走起来，停手超过超时时长就停在原数，服务端每次敲击只补这段间隔。
+  // 时长模式：本次是真实流动的时间；敲击只判断超时是否清零、满一分钟是否上报；今日/累计只显示已上报的整分钟。
   const isTime = selected?.target_kind === 'time';
   const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
   const baseToday = state?.today ?? 0;

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const where = ' FROM counters c LEFT JOIN practices p ON p.id = c.id WHERE c.id IN (SELECT id FROM practices WHERE owner_id = ?) ORDER BY c.created_at ASC, c.id ASC';
     let res;
     try {
-      res = await DB.prepare(`${base}, p.target_kind AS target_kind, p.target_seconds AS target_seconds, p.idle_seconds AS idle_seconds, p.min_seconds AS min_seconds, p.penalty_seconds AS penalty_seconds${where}`).bind(OWNER_ID).all<Counter>();
+      res = await DB.prepare(`${base}, p.target_kind AS target_kind, p.target_seconds AS target_seconds, p.idle_seconds AS idle_seconds, p.min_seconds AS min_seconds${where}`).bind(OWNER_ID).all<Counter>();
     } catch {
       // 兼容尚未执行 0008 迁移的库（老测试库只跑到 0004/0007）。
       res = await DB.prepare(`${base}${where}`).bind(OWNER_ID).all<Counter>();

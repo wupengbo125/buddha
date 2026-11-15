@@ -1,4 +1,5 @@
--- 惩罚机制：时长模式可以要求「最少坚持」多久；没到就退出，从今日/累计里扣掉设定的时长。
+-- 时长模式坚持机制：practices 记「最少坚持」多久；penalty_seconds 列保留（早期扣时方案），代码已不再写入，仅作历史兼容。
+-- counter_tap_count 触发器在此重建：允许负 delta 并把 total/today 夹在 0 以上（历史兼容），正常路径只写正数。
 ALTER TABLE practices ADD COLUMN min_seconds INTEGER NOT NULL DEFAULT 300;
 ALTER TABLE practices ADD COLUMN penalty_seconds INTEGER NOT NULL DEFAULT 120;
 
