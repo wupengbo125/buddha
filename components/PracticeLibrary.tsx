@@ -145,6 +145,16 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!editor || busy) return;
+    // 保存前先自己查一遍，直接说是哪一项不对，别等接口回一句「输入无效」。
+    if (kind === 'practices') {
+      const problem = !editor.name.trim() ? '名称不能为空'
+        : editor.targetKind === 'count' && !(Number(editor.target) >= 1) ? '目标次数必须是大于 0 的整数'
+        : editor.targetKind === 'time' && !(Number(editor.minutes) >= 1) ? '目标时长（分钟）必须大于 0'
+        : !(Number(editor.idle) >= 1 && Number(editor.idle) <= 60) ? '超时（秒）要在 1 到 60 之间'
+        : !(Number(editor.min) >= 1) ? `最少坚持（${editor.targetKind === 'count' ? '声' : '分钟'}）必须大于 0`
+        : '';
+      if (problem) { setError(problem); return; }
+    }
     setBusy(true);
     setError('');
     setNotice('');
@@ -301,6 +311,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
 
       {editor && <section className={styles.editor} aria-labelledby="editor-title">
         <div className={styles.sectionHeading}><h2 id="editor-title">{editor.id ? '编辑' : '新增'}{entityName}</h2><button type="button" className="icon-button" disabled={busy} title="关闭编辑" aria-label="关闭编辑" onClick={() => setEditor(null)}><X size={20} /></button></div>
+        {error && <p role="alert" className="error-message">{error}</p>}
         <form onSubmit={save}>
           <fieldset disabled={busy} className={styles.fields}>
             <label className={styles.label} htmlFor="practice-name">名称（必填）<input id="practice-name" className="field" required value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>

@@ -13,7 +13,8 @@ export const practiceInput = z.object({
   targetKind: z.enum(['count', 'time']).default('count'),
   targetSeconds: z.number().int().min(0).max(604800).default(3600),
   idleSeconds: z.number().int().min(1).max(60).default(10),
-  minSeconds: z.number().int().min(60).max(36000).default(300),
+  // 时长模式单位是秒、次数模式单位是声，所以下限只到 1；时长模式的最小 60 秒由编辑页保证。
+  minSeconds: z.number().int().min(1).max(36000).default(300),
 });
 
 export type ContentKind = 'practices' | 'collections';
