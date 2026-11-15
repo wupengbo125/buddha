@@ -130,7 +130,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   useEffect(() => { try { setLastPracticeId(window.localStorage.getItem('buddha:last-practice') ?? ''); } catch {} }, []);
 
   const allItems = kind === 'practices' ? practices : collections;
-  const foldDone = allItems.filter((entry) => 'items' in entry ? Boolean(entry.progress?.completed) : (entry.targetKind === 'time' ? (entry.personal_total ?? 0) >= entry.targetSeconds : (entry.personal_total ?? 0) >= entry.target));
+  const foldDone = allItems.filter((entry) => 'items' in entry ? Boolean(entry.progress?.completed) : Boolean(entry.roundDone));
   const entityName = kind === 'practices' ? '发愿' : '发愿集';
   const statusFold = allItems.filter((entry) => entry.visibility === 'public' && !foldDone.some((done) => done.id === entry.id));
   const items = allItems.filter((entry) => entry.visibility !== 'public' && !foldDone.some((done) => done.id === entry.id));
@@ -350,7 +350,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
       )}
       {!loading && foldDone.length > 0 && <section className={styles.fold}>
         <button type="button" className={styles.foldHead} aria-expanded={foldOpen} onClick={() => setFoldOpen((value) => !value)}><span>已完成 · {foldDone.length}</span><span>{foldOpen ? '收起' : '展开'}{foldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
-        {foldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{foldDone.map((item) => <li className={styles.contentRow} key={item.id}><div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2><span className={styles.pubLabel}>{'items' in item ? '已完成' : ('targetKind' in item && item.targetKind === 'time' ? `已念 ${durationLabel(item.personal_total ?? 0)}` : `已念 ${(item.personal_total ?? 0).toLocaleString()} 次`)}</span></div><div className={styles.actions}><button type="button" className="secondary-button" disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><Play size={16} />再念一次</button></div></li>)}</ul>}
+        {foldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{foldDone.map(renderCard)}</ul>}
       </section>}
       {menu && <div className={styles.scrim} onClick={() => setMenu(null)} />}
       {menu && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label={`${menu.name} 的更多操作`}>

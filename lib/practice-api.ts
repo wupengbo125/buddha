@@ -34,9 +34,14 @@ export function detailHandlers(kind: ContentKind) {
       const owner = await practiceOwner(req);
       if (!owner) return jsonError('未登录', 401);
       try {
-        const body = z.object({ action: z.enum(['publish', 'unpublish', 'copy', 'like', 'favorite']), enabled: z.boolean().optional().default(true) }).parse(await readJson(req));
+        const body = z.object({ action: z.enum(['publish', 'unpublish', 'copy', 'like', 'favorite', 'restart']), enabled: z.boolean().optional().default(true) }).parse(await readJson(req));
         if (body.action === 'like' || body.action === 'favorite') return NextResponse.json(await changeInteraction(getEnv().DB, kind, (await context.params).id, owner, body.action, body.enabled));
         if (body?.action === 'copy') return NextResponse.json(await copyContent(getEnv().DB, kind, (await context.params).id, owner));
+        if (body?.action === 'restart' && kind === 'practices') {
+          // 再念一次：只清「本轮完成」状态，累计与今日不动。
+          await getEnv().DB.prepare('UPDATE practices SET round_done = 0 WHERE id = ? AND owner_id = ?').bind((await context.params).id, owner).run();
+          return NextResponse.json({ ok: true });
+        }
         if (body?.action === 'unpublish') return NextResponse.json(await withdrawContent(getEnv().DB, kind, (await context.params).id, owner));
         if (body?.action !== 'publish') return jsonError('操作无效', 400);
         return NextResponse.json(await reviewContent(getEnv().DB, kind, (await context.params).id, owner));

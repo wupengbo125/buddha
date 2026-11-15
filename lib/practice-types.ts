@@ -18,6 +18,7 @@ export interface Practice {
   targetSeconds: number;
   idleSeconds: number;
   minSeconds: number;
+  roundDone: boolean;
   visibility: PracticeVisibility;
   source_id?: string | null;
   source_name?: string | null;
