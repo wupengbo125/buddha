@@ -27,7 +27,7 @@ function hm(seconds: number): string {
 }
 
 export function ChantClient() {
-  const { counters, states, caption, loading, error, handleTap, refreshCounts } = useChant();
+  const { counters, states, caption, loading, error, handleTap, feedbackTap, refreshCounts } = useChant();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [practiceSession, setPracticeSession] = useState<PracticeSessionState | null>(null);
@@ -229,9 +229,11 @@ export function ChantClient() {
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
               <WoodenFish onTap={() => {
-                // 时长模式只走本地计时与分钟上报；不再发 /taps，避免服务端重复补秒。
-                if (isTime) tapSettle();
-                else handleTap(selected);
+                // 时长模式只走本地计时与分钟上报，不发 /taps；但音效弹幕照常。
+                if (isTime) {
+                  tapSettle();
+                  feedbackTap(selected);
+                } else handleTap(selected);
               }} />
             </div>
             {isTime ? (

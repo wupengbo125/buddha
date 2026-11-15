@@ -171,6 +171,20 @@ export function useChant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 只做音效 / 震动 / 弹幕，不改计数、不发 /taps：时长模式敲击时用。
+  function feedbackTap(counter: Counter) {
+    settingsRef.current = loadSettings();
+    captionToken.current += 1;
+    setCaption({
+      text: nextCaptionText(counter, statesRef.current[counter.id]?.today ?? 0),
+      durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
+      token: captionToken.current,
+    });
+    const globalOn = settingsRef.current.soundEnabled;
+    if (shouldPlaySound(globalOn)) playWoodFish();
+    if (shouldVibrate(globalOn, prefersReducedMotion())) vibrateShort();
+  }
+
   function handleTap(counter: Counter) {
     if (!storageReady.current) {
       setError('无法保存敲击，请检查浏览器存储设置');
@@ -210,5 +224,5 @@ export function useChant() {
     if (retryRef.current.size > 0) drainRetry();
   }
 
-  return { counters, states, caption, loading, error, handleTap, refreshCounts };
+  return { counters, states, caption, loading, error, handleTap, feedbackTap, refreshCounts };
 }
