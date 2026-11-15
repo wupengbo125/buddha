@@ -14,6 +14,11 @@ import { useChant } from './useChant';
 import { PracticeChant } from './PracticeChant';
 import type { PracticeSessionState } from '@/lib/practice-types';
 
+function ms(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 function hm(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);
@@ -111,9 +116,11 @@ export function ChantClient() {
   const baseTotal = state?.total ?? 0;
   
   const [pending, setPending] = useState(0);
-  const [sessionSec, setSessionSec] = useState(0);
-  const session = useRef<{ streak: number; pending: number; sent: number; minute: number; anchor: number; lastTap: number }>({ streak: 0, pending: 0, sent: 0, minute: 0, anchor: Date.now(), lastTap: Date.now() });
+  const [paused, setPaused] = useState(true);
+  const [, setClock] = useState(0);
+  const session = useRef<{ sent: number; pending: number; lastTap: number; minute: number }>({ sent: 0, pending: 0, lastTap: Date.now(), minute: 0 });
   const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reportMinutes = (minutes: number) => {
     if (!selected || minutes <= 0) return;
@@ -130,68 +137,60 @@ export function ChantClient() {
       .catch(() => undefined);
   };
 
-  // 只在敲击时算一次；超时那一刻挂一个一次性定时器清零，不做每秒循环。
-  const settle = (now: number) => {
+  // 界面上的时间正常流动；只有敲击时才算一次：是否超时清零、是否满一分钟该上报。
+  useEffect(() => {
+    const at = Date.now();
+    session.current = { sent: 0, pending: 0, lastTap: at, minute: 0 };
+    setPending(0);
+    setPaused(isTime);
+    setClock((value) => value + 1);
+    if (!isTime) return;
+    const clock = setInterval(() => setClock((value) => value + 1), 500);
+    return () => clearInterval(clock);
+  }, [isTime, idleSeconds, minSeconds, selected?.id]);
+
+  const tapSettle = () => {
+    const now = Date.now();
     const gap = (now - session.current.lastTap) / 1000;
+    session.current.lastTap = now;
+    if (timerRef.current) clearTimeout(timerRef.current);
     if (gap > idleSeconds) {
-      session.current.streak = 0;
+      // 超时后的第一下：本次未上报的部分作废，从 0 重新开始，已上报的保留。
       session.current.pending = 0;
       setPending(0);
-      setSessionSec(session.current.sent);
-      setPaused(true);
-      return false;
+    } else {
+      session.current.pending += gap;
+      setPending(session.current.pending);
     }
-    session.current.streak += gap;
-    session.current.pending += gap;
-    setPending(session.current.pending);
-    setSessionSec(session.current.sent + session.current.pending);
-    if (session.current.streak >= minSeconds) {
-      const minutes = Math.floor(session.current.pending / 60);
-      if (minutes >= 1) {
-        session.current.pending -= minutes * 60;
-        session.current.sent += minutes * 60;
+    const total = session.current.sent + session.current.pending;
+    if (total >= minSeconds) {
+      const want = Math.floor(total / 60) * 60 - session.current.sent;
+      if (want >= 60) {
+        session.current.sent += want;
         setPending(session.current.pending);
-        setSessionSec(session.current.sent + session.current.pending);
-        reportMinutes(minutes);
+        reportMinutes(want / 60);
       }
     }
-    return true;
-  };
-
-  const [paused, setPaused] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const armTimeout = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+    setPaused(false);
     timerRef.current = setTimeout(() => {
-      session.current.streak = 0;
       session.current.pending = 0;
       setPending(0);
-      setSessionSec(session.current.sent);
       setPaused(true);
     }, idleSeconds * 1000);
   };
 
-  useEffect(() => {
-    session.current.lastTap = Date.now();
-    session.current.streak = 0;
-    session.current.pending = 0;
-    session.current.sent = 0;
-    setPending(0);
-    setSessionSec(0);
-    setPaused(isTime);
-    if (!isTime) return;
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [isTime, idleSeconds, minSeconds, selected?.id]);
+  // 本次：已上报 + 未上报 + 这一秒正在走的，全部实时显示。
+  const liveElapsed = paused ? 0 : Math.min(idleSeconds, (Date.now() - session.current.lastTap) / 1000);
+  const sessionSeconds = session.current.sent + session.current.pending + liveElapsed;
 
   // 页面被隐藏 / 关闭：未上报的本地累计直接作废。
   useEffect(() => {
     const drop = () => {
-      session.current.streak = 0;
+      session.current.sent = 0;
       session.current.pending = 0;
       session.current.lastTap = Date.now();
       if (timerRef.current) clearTimeout(timerRef.current);
       setPending(0);
-      setSessionSec(0);
       setPaused(true);
     };
     const onHidden = () => { if (document.visibilityState === 'hidden') drop(); };
@@ -236,20 +235,14 @@ export function ChantClient() {
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
               <WoodenFish onTap={() => {
-                if (isTime) {
-                  const now = Date.now();
-                  settle(now);
-                  session.current.lastTap = now;
-                  setPaused(false);
-                  armTimeout();
-                }
+                if (isTime) tapSettle();
                 handleTap(selected);
               }} />
             </div>
             {isTime ? (
-              <div className={`count-row ${paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${hm(sessionSec)}，今日 ${hm(baseToday + pending)}，累计 ${hm(baseTotal + pending)}`}>
+              <div className={`count-row ${paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${ms(sessionSeconds)}，今日 ${hm(baseToday + pending)}，累计 ${hm(baseTotal + pending)}`}>
                 <span className="count-row-label">本次</span>
-                <span className="count-row-num count-row-today">{hm(sessionSec)}</span>
+                <span className="count-row-num count-row-today">{ms(sessionSeconds)}</span>
                 <span className="count-row-sub">今日 {hm(baseToday + pending)} · 累计 {hm(baseTotal + pending)}</span>
               </div>
             ) : (
