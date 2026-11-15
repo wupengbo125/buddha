@@ -11,7 +11,7 @@ export const practiceInput = z.object({
   prompts: z.array(z.string().max(1000)).max(100),
   target: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   targetKind: z.enum(['count', 'time']).default('count'),
-  targetSeconds: z.number().int().min(60).max(604800).default(3600),
+  targetSeconds: z.number().int().min(0).max(604800).default(3600),
   idleSeconds: z.number().int().min(1).max(60).default(10),
   minSeconds: z.number().int().min(60).max(36000).default(300),
   penaltySeconds: z.number().int().min(0).max(36000).default(120),
