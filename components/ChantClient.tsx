@@ -109,13 +109,13 @@ export function ChantClient() {
   const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
   const baseToday = state?.today ?? 0;
   const baseTotal = state?.total ?? 0;
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useState(idleSeconds);
   useEffect(() => {
-    setTick(0);
+    setTick(isTime ? idleSeconds : 0);
     if (!isTime) return;
     const timer = setInterval(() => setTick((value) => Math.min(idleSeconds, value + 1)), 1000);
     return () => clearInterval(timer);
-  }, [isTime, idleSeconds, baseToday, baseTotal, selected?.id]);
+  }, [isTime, idleSeconds, selected?.id]);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -152,7 +152,7 @@ export function ChantClient() {
               <div className="chant-caption" aria-live="off">
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
-              <WoodenFish onTap={() => handleTap(selected)} />
+              <WoodenFish onTap={() => { setTick(0); handleTap(selected); }} />
             </div>
             {isTime ? (
               <div className={`count-row ${tick >= idleSeconds ? 'count-row-paused' : ''}`} aria-label={`今日 ${hm(baseToday + tick)}，累计 ${hm(baseTotal + tick)}`}>
