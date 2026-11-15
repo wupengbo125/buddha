@@ -115,19 +115,21 @@ export function ChantClient() {
   const baseToday = state?.today ?? 0;
   const baseTotal = state?.total ?? 0;
   
-  const [pending, setPending] = useState(0);
   const [paused, setPaused] = useState(true);
   const [, setClock] = useState(0);
-  const session = useRef<{ sent: number; pending: number; lastTap: number; minute: number }>({ sent: 0, pending: 0, lastTap: Date.now(), minute: 0 });
+  // startAt：本次真实起点（null = 本次没有在走）；reported：本次已上报的整分钟数。
+  const session = useRef<{ startAt: number | null; reported: number; seq: number }>({ startAt: null, reported: 0, seq: 0 });
+
+  const track = () => (session.current.startAt === null ? 0 : (Date.now() - session.current.startAt) / 1000);
   const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reportMinutes = (minutes: number) => {
     if (!selected || minutes <= 0) return;
-    session.current.minute += 1;
+    session.current.seq += 1;
     const local = new Date();
     const date = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
-    const eventId = `min-${selected.id}-${session.current.minute}-${Date.now()}`;
+    const eventId = `min-${selected.id}-${session.current.seq}-${Date.now()}`;
     void fetch(`/api/counters/${selected.id}/minutes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -137,60 +139,52 @@ export function ChantClient() {
       .catch(() => undefined);
   };
 
-  // 界面上的时间正常流动；只有敲击时才算一次：是否超时清零、是否满一分钟该上报。
+  // 本次时间正常流动，界面每秒刷新；这里不做任何累计逻辑。
   useEffect(() => {
-    const at = Date.now();
-    session.current = { sent: 0, pending: 0, lastTap: at, minute: 0 };
-    setPending(0);
-    setPaused(isTime);
+    session.current = { startAt: null, reported: 0, seq: 0 };
+    setPaused(true);
     setClock((value) => value + 1);
     if (!isTime) return;
     const clock = setInterval(() => setClock((value) => value + 1), 500);
     return () => clearInterval(clock);
   }, [isTime, idleSeconds, minSeconds, selected?.id]);
 
+  // 敲击：只判断间隔是否超时；没超时就看本次满了几分钟、要不要上报。
   const tapSettle = () => {
     const now = Date.now();
-    const gap = (now - session.current.lastTap) / 1000;
-    session.current.lastTap = now;
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (gap > idleSeconds) {
-      // 超时后的第一下：本次未上报的部分作废，从 0 重新开始，已上报的保留。
-      session.current.pending = 0;
-      setPending(0);
-    } else {
-      session.current.pending += gap;
-      setPending(session.current.pending);
+    const gap = session.current.startAt === null ? 0 : now - session.current.startAt;
+    if (session.current.startAt !== null && gap > idleSeconds * 1000) {
+      // 隔太久才敲：本次整段作废，从现在重新开始。
+      session.current = { startAt: now, reported: 0, seq: session.current.seq };
+    } else if (session.current.startAt === null) {
+      session.current.startAt = now;
     }
-    const total = session.current.sent + session.current.pending;
-    if (total >= minSeconds) {
-      const want = Math.floor(total / 60) * 60 - session.current.sent;
-      if (want >= 60) {
-        session.current.sent += want;
-        setPending(session.current.pending);
-        reportMinutes(want / 60);
+    const elapsed = track();
+    if (elapsed >= minSeconds) {
+      const whole = Math.floor(elapsed / 60);
+      if (whole > session.current.reported) {
+        const delta = whole - session.current.reported;
+        session.current.reported = whole;
+        reportMinutes(delta);
       }
     }
     setPaused(false);
+    // 到点没有敲击：直接停表、本次清零。
     timerRef.current = setTimeout(() => {
-      session.current.pending = 0;
-      setPending(0);
+      session.current = { startAt: null, reported: 0, seq: session.current.seq };
       setPaused(true);
     }, idleSeconds * 1000);
   };
 
-  // 本次：已上报 + 未上报 + 这一秒正在走的，全部实时显示。
-  const liveElapsed = paused ? 0 : Math.min(idleSeconds, (Date.now() - session.current.lastTap) / 1000);
-  const sessionSeconds = session.current.sent + session.current.pending + liveElapsed;
+  // 本次：真实流动的秒数。
+  const sessionSeconds = paused ? 0 : track();
 
   // 页面被隐藏 / 关闭：未上报的本地累计直接作废。
   useEffect(() => {
     const drop = () => {
-      session.current.sent = 0;
-      session.current.pending = 0;
-      session.current.lastTap = Date.now();
+      session.current = { startAt: null, reported: 0, seq: session.current.seq };
       if (timerRef.current) clearTimeout(timerRef.current);
-      setPending(0);
       setPaused(true);
     };
     const onHidden = () => { if (document.visibilityState === 'hidden') drop(); };
@@ -241,10 +235,10 @@ export function ChantClient() {
               }} />
             </div>
             {isTime ? (
-              <div className={`count-row ${paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${ms(sessionSeconds)}，今日 ${hm(baseToday + pending)}，累计 ${hm(baseTotal + pending)}`}>
+              <div className={`count-row ${paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${ms(sessionSeconds)}，今日 ${hm(baseToday)}，累计 ${hm(baseTotal)}`}>
                 <span className="count-row-label">本次</span>
                 <span className="count-row-num count-row-today">{ms(sessionSeconds)}</span>
-                <span className="count-row-sub">今日 {hm(baseToday + pending)} · 累计 {hm(baseTotal + pending)}</span>
+                <span className="count-row-sub">今日 {hm(baseToday)} · 累计 {hm(baseTotal)}</span>
               </div>
             ) : (
               <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
@@ -256,7 +250,7 @@ export function ChantClient() {
                 <span className="count-row-label">声</span>
               </div>
             )}
-            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal + pending)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((baseTotal + pending) / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
+            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, (baseTotal / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
             : !isTime && selected.target ? <div className="count-progress" aria-label={`累计 ${state?.total ?? 0} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((state?.total ?? 0) / selected.target) * 100)}%` }} /></div></div> : null}
           </div>
         </>
