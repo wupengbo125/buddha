@@ -118,7 +118,7 @@ export function ChantClient() {
   const [paused, setPaused] = useState(true);
   const [, setClock] = useState(0);
   // startAt：本次真实起点（null = 本次没有在走）；reported：本次已上报的整分钟数。
-  const session = useRef<{ startAt: number | null; reported: number; seq: number }>({ startAt: null, reported: 0, seq: 0 });
+  const session = useRef<{ startAt: number | null; lastTapAt: number | null; reported: number; seq: number }>({ startAt: null, lastTapAt: null, reported: 0, seq: 0 });
 
   const track = () => (session.current.startAt === null ? 0 : (Date.now() - session.current.startAt) / 1000);
   const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
@@ -141,7 +141,7 @@ export function ChantClient() {
 
   // 本次时间正常流动，界面每秒刷新；这里不做任何累计逻辑。
   useEffect(() => {
-    session.current = { startAt: null, reported: 0, seq: 0 };
+    session.current = { startAt: null, lastTapAt: null, reported: 0, seq: 0 };
     setPaused(true);
     setClock((value) => value + 1);
     if (!isTime) return;
@@ -153,12 +153,13 @@ export function ChantClient() {
   const tapSettle = () => {
     const now = Date.now();
     if (timerRef.current) clearTimeout(timerRef.current);
-    const gap = session.current.startAt === null ? 0 : now - session.current.startAt;
-    if (session.current.startAt !== null && gap > idleSeconds * 1000) {
-      // 隔太久才敲：本次整段作废，从现在重新开始。
-      session.current = { startAt: now, reported: 0, seq: session.current.seq };
-    } else if (session.current.startAt === null) {
-      session.current.startAt = now;
+    // 超时看的是「距上一次敲击」，不是距本次开始。
+    const gap = session.current.lastTapAt === null ? Infinity : now - session.current.lastTapAt;
+    if (session.current.startAt === null || gap > idleSeconds * 1000) {
+      // 本次还没开始，或隔太久才敲：本次整段作废，从现在重新开始。
+      session.current = { startAt: now, lastTapAt: now, reported: 0, seq: session.current.seq };
+    } else {
+      session.current.lastTapAt = now;
     }
     const elapsed = track();
     if (elapsed >= minSeconds) {
@@ -172,7 +173,7 @@ export function ChantClient() {
     setPaused(false);
     // 到点没有敲击：直接停表、本次清零。
     timerRef.current = setTimeout(() => {
-      session.current = { startAt: null, reported: 0, seq: session.current.seq };
+      session.current = { startAt: null, lastTapAt: null, reported: 0, seq: session.current.seq };
       setPaused(true);
     }, idleSeconds * 1000);
   };
@@ -183,7 +184,7 @@ export function ChantClient() {
   // 页面被隐藏 / 关闭：未上报的本地累计直接作废。
   useEffect(() => {
     const drop = () => {
-      session.current = { startAt: null, reported: 0, seq: session.current.seq };
+      session.current = { startAt: null, lastTapAt: null, reported: 0, seq: session.current.seq };
       if (timerRef.current) clearTimeout(timerRef.current);
       setPaused(true);
     };
