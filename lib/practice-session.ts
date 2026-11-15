@@ -102,6 +102,8 @@ export async function practiceTap(db: D1Database, owner: string, body: unknown, 
       db.prepare('INSERT INTO practice_events(owner_id, event_id, run_id, item_index, date) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM practice_events WHERE owner_id = ? AND event_id = ?)')
         .bind(owner, input.eventId, input.runId, input.itemIndex, input.date, owner, input.eventId),
       db.prepare('SELECT run_id, item_index, date FROM practice_events WHERE owner_id = ? AND event_id = ?').bind(owner, input.eventId),
+      db.prepare("INSERT OR IGNORE INTO tap_events(id, counter_id, device_id, event_id, delta, date, created_at) SELECT ?, practice_id, ?, 'practice:' || ?, 1, ?, ? FROM practice_run_items WHERE run_id = ? AND item_index = ?")
+        .bind(`practice:${owner}:${input.eventId}`, owner, input.eventId, input.date, new Date().toISOString(), input.runId, input.itemIndex),
     ]);
     committed = result[1].results![0] as typeof committed;
   } catch (error) {

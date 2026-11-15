@@ -40,7 +40,7 @@ describe('practice API', () => {
   async function seed(target = 2) {
     const practices = await import('@/app/api/practices/route');
     const collections = await import('@/app/api/practice-collections/route');
-    const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'practice', recitation: 'recitation', prompts: ['a', 'b'], target })));
+    const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'practice', prompts: ['a', 'b'], target })));
     const collection = await readJson<Collection>(collections.POST(request('practice-collections', 'POST', { name: 'collection', practiceIds: [practice.id, practice.id] })));
     return { practice, collection };
   }
@@ -59,8 +59,7 @@ describe('practice API', () => {
     const practices = await import('@/app/api/practices/route');
     const counters = await import('@/app/api/counters/route');
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{
-      id: 'historical', owner_id: 'owner', name: 'recitation', recitation: 'recitation',
-      prompts: ['prompt'], visibility: 'private', target: 108, personal_total: 123,
+      id: 'historical', owner_id: 'owner', name: 'recitation', prompts: ['prompt'], visibility: 'private', target: 108, personal_total: 123,
     }]);
     expect(await readJson(counters.GET(request('counters')))).toMatchObject({
       counters: [{ id: 'historical', total: 123, today: 7, today_date: '2026-11-13', sound_enabled: 0 }],
@@ -77,11 +76,11 @@ describe('practice API', () => {
     const counters = await import('@/app/api/counters/route');
     const taps = await import('@/app/api/counters/[id]/taps/route');
     const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', {
-      name: 'wish', recitation: 'recitation', prompts: ['first', 'second'], target: 108,
+      name: 'wish', prompts: ['first', 'second'], target: 108,
     })));
     const context = { params: Promise.resolve({ id: practice.id }) };
     expect(await readJson(counters.GET(request('counters')))).toMatchObject({
-      counters: [{ id: practice.id, name: 'recitation', caption: 'first', total: 0 }],
+      counters: [{ id: practice.id, name: 'wish', caption: 'first', total: 0 }],
     });
     const response = await taps.POST(request(`counters/${practice.id}/taps`, 'POST', {
       event_id: 'single-one', delta: 1, date: '2026-11-13',
@@ -98,7 +97,7 @@ describe('practice API', () => {
     const { practice } = await seed(2);
     const practices = await import('@/app/api/practices/route');
     const collections = await import('@/app/api/practice-collections/route');
-    const next = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'next', recitation: 'next', prompts: [], target: 2 })));
+    const next = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'next', prompts: [], target: 2 })));
     const collection = await readJson<Collection>(collections.POST(request('practice-collections', 'POST', { name: 'ordered', practiceIds: [practice.id, next.id] })));
     const singleTaps = await import('@/app/api/counters/[id]/taps/route');
     const session = await import('@/app/api/practice-session/route');
@@ -132,7 +131,7 @@ describe('practice API', () => {
       counters: [{ id: practice.id, total: 3, today: 1, today_date: '2026-11-14' }],
     });
     expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({
-      active: { count: 1, items: [{ today_total: 1, personal_total: 3 }, { today_total: 1, personal_total: 3 }] },
+      active: { count: 3, items: [{ today_total: 1, personal_total: 3 }, { today_total: 1, personal_total: 3 }] },
       stats: { today: 1, total: 3 },
     });
   });
@@ -144,11 +143,11 @@ describe('practice API', () => {
     const started = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-14', 'POST', { action: 'start', collectionId: collection.id })));
     await session.POST(request('practice-session?date=2026-11-14', 'POST', { action: 'restart', collectionId: collection.id }));
     const event = { eventId: 'stale-tap', runId: started.active.id, itemIndex: 0, date: '2026-11-14' };
-    expect((await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', event))).status).toBe(200);
-    expect((await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', event))).status).toBe(200);
+    expect((await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', event))).status).toBe(410);
+    expect((await sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', event))).status).toBe(410);
     expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({
-      active: { count: 0, items: [{ id: practice.id, personal_total: 1 }, { id: practice.id, personal_total: 1 }] },
-      stats: { today: 1, total: 1 },
+      active: { count: 0, items: [{ id: practice.id, personal_total: 0 }, { id: practice.id, personal_total: 0 }] },
+      stats: { today: 0, total: 0 },
     });
   });
 
@@ -179,7 +178,7 @@ describe('practice API', () => {
       eventId: 'deleted', runId: started.active.id, itemIndex: 0, date: '2026-11-14',
     }));
     expect(response.status).toBe(410);
-    expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({ active: { count: 0 }, stats: { total: 0 } });
+    expect(await readJson(session.GET(request('practice-session?date=2026-11-14')))).toMatchObject({ active: null, stats: { total: 0 } });
   });
 
   it('identifies an unsent tap for a deleted collection as permanently unavailable', async () => {
@@ -205,16 +204,16 @@ describe('practice API', () => {
       event_id: 'before-edit', delta: 1, date: '2026-11-13',
     }), context);
     expect((await detail.PATCH(request(`practices/${practice.id}`, 'PATCH', {
-      name: 'wish', recitation: 'changed', prompts: ['new first', 'second'],
+      name: 'wish', prompts: ['new first', 'second'],
     }), context)).status).toBe(200);
     expect(await readJson(counters.GET(request('counters')))).toMatchObject({
-      counters: [{ id: practice.id, name: 'changed', caption: 'new first', total: 1 }],
+      counters: [{ id: practice.id, name: 'wish', caption: 'new first', total: 1 }],
     });
     expect((await counter.PATCH(request(`counters/${practice.id}`, 'PATCH', {
       name: 'legacy edit', caption: 'legacy first', sound_enabled: 0,
     }), context)).status).toBe(200);
     expect(await readJson(detail.GET(request(`practices/${practice.id}`), context))).toMatchObject({
-      id: practice.id, name: 'wish', recitation: 'legacy edit', prompts: ['legacy first', 'second'],
+      id: practice.id, name: 'legacy edit', prompts: ['legacy first', 'second'],
       target: 7, personal_total: 1,
     });
     expect(await readJson(counters.GET(request('counters')))).toMatchObject({
@@ -233,14 +232,14 @@ describe('practice API', () => {
     expect(response.status).toBe(200);
     expect(await readJson(response)).toMatchObject({ counter: { id: practice.id, name, caption } });
     expect(await readJson(detail.GET(request(`practices/${practice.id}`), context))).toMatchObject({
-      visibility: 'private', recitation: name, prompts: [caption, 'b'], reviews: [],
+      visibility: 'private', name, prompts: [caption, 'b'], reviews: [],
     });
   });
 
   it.each([
-    { visibility: 'public', patch: { name: 'reviewed recitation' }, recitation: 'reviewed recitation', prompts: ['a', 'b'] },
-    { visibility: 'pending', patch: { caption: '' }, recitation: 'recitation', prompts: ['', 'b'] },
-  ])('reviews compatibility PATCH text from $visibility content before publishing it', async ({ visibility, patch, recitation, prompts }) => {
+    { visibility: 'public', patch: { name: 'reviewed recitation' }, prompts: ['a', 'b'] },
+    { visibility: 'pending', patch: { caption: '' }, prompts: ['', 'b'] },
+  ])('reviews compatibility PATCH text from $visibility content before publishing it', async ({ visibility, patch, prompts }) => {
     const { practice } = await seed();
     const detail = await import('@/app/api/practices/[id]/route');
     const counter = await import('@/app/api/counters/[id]/route');
@@ -257,14 +256,14 @@ describe('practice API', () => {
     }
     const response = await counter.PATCH(request(`counters/${practice.id}`, 'PATCH', { ...patch, sound_enabled: 0 }), context);
     expect(response.status).toBe(200);
-    expect(await readJson(response)).toMatchObject({ counter: { name: recitation, caption: prompts[0], sound_enabled: 0 } });
+    expect(await readJson(response)).toMatchObject({ counter: { name: patch.name ?? 'practice', caption: prompts[0], sound_enabled: 0 } });
     expect(await readJson(detail.GET(request(`practices/${practice.id}`), context))).toMatchObject({
-      visibility: 'public', recitation, prompts,
+      visibility: 'public', prompts,
     });
     state.authenticated = false;
     expect(await readJson(discover.GET(request(`discover/practices/${practice.id}`), {
       params: Promise.resolve({ kind: 'practices', id: practice.id }),
-    }))).toMatchObject({ visibility: 'public', recitation, prompts });
+    }))).toMatchObject({ visibility: 'public', prompts });
   });
 
   it.each([
@@ -289,12 +288,12 @@ describe('practice API', () => {
       expect(response.status).toBe(status);
       if (decision === 'error') expect(await readJson(response)).toMatchObject({ error: expect.any(String) });
       const own = await readJson<Reviewed<Practice>>(detail.GET(request(`practices/${practice.id}`), context));
-      expect(own).toMatchObject({ visibility, recitation: 'unreviewed', prompts: ['draft prompt', 'b'] });
+      expect(own).toMatchObject({ visibility, prompts: ['draft prompt', 'b'] });
       expect(own.reviews.map((review) => review.status)).toEqual(['approved', decision]);
       state.authenticated = false;
       expect(await readJson(discover.GET(request(`discover/practices/${practice.id}`), {
         params: Promise.resolve({ kind: 'practices', id: practice.id }),
-      }))).toMatchObject({ recitation: 'recitation', prompts: ['a', 'b'] });
+      }))).toMatchObject({ prompts: ['a', 'b'] });
     } finally { restore(); }
   });
 
@@ -392,7 +391,7 @@ describe('practice API', () => {
     expect(copied.id).not.toBe(practice.id);
     expect(copied).toMatchObject({ owner_id: 'reader', source_id: practice.id, target: 2, personal_total: 0 });
     expect(await readJson(counters.GET(request('counters')))).toMatchObject({
-      counters: [{ id: copied.id, total: 0, today: 0, name: 'recitation' }],
+      counters: [{ id: copied.id, total: 0, today: 0, name: 'practice' }],
     });
     expect((await counter.PATCH(request(`counters/${practice.id}`, 'PATCH', { name: 'stolen' }), context)).status).toBe(404);
     expect((await counter.DELETE(request(`counters/${practice.id}`, 'DELETE'), context)).status).toBe(404);
@@ -417,11 +416,11 @@ describe('practice API', () => {
     const date = '2026-11-13';
     const tap = (eventId: string, itemIndex: number) => taps.POST(request('practice-session/taps?date=2026-11-13', 'POST', { eventId, runId, itemIndex, date }));
     current = await readJson<ActiveSession>(tap('one', 0));
-    expect(current.active.counts).toEqual([1, 0]);
+    expect(current.active.counts).toEqual([1, 1]);
     await tap('one', 0);
     current = await readJson<ActiveSession>(tap('two', 0));
     expect(current.active.index).toBe(1);
-    expect(current.active.counts).toEqual([2, 0]);
+    expect(current.active.counts).toEqual([2, 2]);
     expect((await tap('late', 0)).status).toBe(200);
     expect((await tap('future', 2)).status).toBe(409);
     await Promise.all([tap('three', 1), tap('three', 1)]);
@@ -461,7 +460,7 @@ describe('practice API', () => {
     expect((await readJson<PracticeSessionState>(tapped)).stats).toEqual({ today, total: 9 });
     const response = await session.GET(request(`practice-session?date=${date}`));
     expect(response.status).toBe(200);
-    expect((await readJson<ActiveSession>(response))).toMatchObject({ active: { total: 2 }, stats: { today, total: 9 } });
+    expect((await readJson<ActiveSession>(response))).toMatchObject({ active: { total: 4 }, stats: { today, total: 9 } });
     state.owner = 'other';
     const otherResponse = await session.GET(request(`practice-session?date=${date}`));
     expect(otherResponse.status).toBe(200);
@@ -484,7 +483,7 @@ describe('practice API', () => {
     expect(paused.active).toBeNull();
     expect(paused.stats).toEqual({ today: 0, total: 1 });
     const saved = await readJson<Collection>(collectionRoute.GET(request(`practice-collections/${collection.id}`), { params: Promise.resolve({ id: collection.id }) }));
-    expect(saved.progress).toMatchObject({ id: runId, index: 0, completed: false, counts: [1, 0], total: 1 });
+    expect(saved.progress).toMatchObject({ id: runId, index: 0, completed: false, counts: [1, 1], total: 2 });
     expect((await readJson<PracticeSessionState>(taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', body)))).active).toBeNull();
     await practiceRoute.PATCH(request(`practices/${practice.id}`, 'PATCH', { name: 'new', target: 7 }), { params: Promise.resolve({ id: practice.id }) });
     await collectionRoute.PATCH(request(`practice-collections/${collection.id}`, 'PATCH', { name: 'new name', practiceIds: [] }), { params: Promise.resolve({ id: collection.id }) });
@@ -497,7 +496,7 @@ describe('practice API', () => {
     expect(resumed.active.items[0].target).toBe(3);
     expect(resumed.active.items[0].name).toBe('new');
     expect(resumed.active.collection_name).toBe('collection');
-    expect(resumed.active.counts).toEqual([2, 0]);
+    expect(resumed.active.counts).toEqual([2, 2]);
     expect((await action('restart', collection.id)).status).toBe(409);
     await collectionRoute.PATCH(request(`practice-collections/${collection.id}`, 'PATCH', { practiceIds: [practice.id] }), { params: Promise.resolve({ id: collection.id }) });
     const restarted = await readJson<ActiveSession>(action('restart', collection.id));
@@ -506,11 +505,11 @@ describe('practice API', () => {
     expect(restarted.active.counts).toEqual([0]);
     await taps.POST(request('practice-session/taps?date=2026-11-14', 'POST', { eventId: 'new-day', runId: restarted.active.id, itemIndex: 0, date: '2026-11-14' }));
     const latest = await readJson<PracticeSessionState>(session.GET(request('practice-session?date=2026-11-14')));
-    expect(latest.stats).toEqual({ today: 1, total: 3 });
+    expect(latest.stats).toEqual({ today: 1, total: 1 });
     await collectionRoute.DELETE(request(`practice-collections/${collection.id}`, 'DELETE'), { params: Promise.resolve({ id: collection.id }) });
     const removed = await readJson<PracticeSessionState>(session.GET(request('practice-session?date=2026-11-14')));
     expect(removed.active).toBeNull();
-    expect(removed.stats).toEqual({ today: 1, total: 3 });
+    expect(removed.stats).toEqual({ today: 1, total: 1 });
     expect(removed.revision).toBeGreaterThan(latest.revision);
   });
 
@@ -522,7 +521,7 @@ describe('practice API', () => {
     const start = await readJson<ActiveSession>(session.POST(request('practice-session', 'POST', { action: 'start', collectionId: collection.id })));
     const body = { eventId: 'retry', runId: start.active.id, itemIndex: 0, date: '2026-11-13' };
     sqlite.exec(stage === 'daily'
-      ? "CREATE TRIGGER fail_count BEFORE INSERT ON practice_daily_counts BEGIN SELECT RAISE(ABORT, 'disk failure'); END"
+      ? "CREATE TRIGGER fail_count BEFORE INSERT ON tap_events BEGIN SELECT RAISE(ABORT, 'disk failure'); END"
       : "CREATE TRIGGER fail_count BEFORE UPDATE ON practice_sessions BEGIN SELECT RAISE(ABORT, 'disk failure'); END");
     expect((await taps.POST(request('practice-session/taps', 'POST', body))).status).toBe(500);
     const failed = await readJson<ActiveSession>(session.GET(request('practice-session?date=2026-11-13')));
@@ -532,7 +531,7 @@ describe('practice API', () => {
     expect((await taps.POST(request('practice-session/taps', 'POST', body))).status).toBe(200);
     await taps.POST(request('practice-session/taps', 'POST', body));
     const recovered = await readJson<ActiveSession>(session.GET(request('practice-session?date=2026-11-13')));
-    expect(recovered.active.counts).toEqual([1, 0]);
+    expect(recovered.active.counts).toEqual([1, 1]);
     expect(recovered.stats).toEqual({ today: 1, total: 1 });
     expect((await readJson<Practice>(practiceRoute.GET(request(`practices/${practice.id}`), { params: Promise.resolve({ id: practice.id }) }))).personal_total).toBe(1);
   });
@@ -561,7 +560,7 @@ describe('practice API', () => {
       return { approved: false, reason: 'needs revision' };
     });
     try {
-      const editing = practiceRoute.PATCH(request(`practices/${practice.id}`, 'PATCH', { name: 'draft', recitation: 'unreviewed' }), context);
+      const editing = practiceRoute.PATCH(request(`practices/${practice.id}`, 'PATCH', { name: 'draft' }), context);
       await enteredReview;
       state.authenticated = false;
       const publicVersion = await readJson<Practice>(discover.GET(request(`discover/practices/${practice.id}`), publicContext));
@@ -654,7 +653,7 @@ describe('practice API', () => {
     state.owner = 'reader';
     expect((await practiceRoute.POST(request(`practices/${practice.id}`, 'POST', { action: 'copy' }), { params: Promise.resolve({ id: practice.id }) })).status).toBe(404);
     const remaining = await readJson<Practice[]>(practices.GET(request('practices')));
-    expect(remaining.find((item) => item.id === single.id)).toMatchObject({ name: 'my text', source_name: 'practice', source_owner_id: 'owner' });
+    expect(remaining.find((item) => item.id === single.id)).toMatchObject({ name: 'practice', source_name: 'practice', source_owner_id: 'owner' });
     expect((await readJson<Collection>(collectionRoute.GET(request(`practice-collections/${copy.id}`), { params: Promise.resolve({ id: copy.id }) }))).items.map((item) => item.name)).toEqual(['practice', 'practice']);
   });
 
@@ -666,11 +665,11 @@ describe('practice API', () => {
     const favorites = await import('@/app/api/discover/favorites/route');
     const ids: string[] = [];
     for (let index = 0; index < 21; index++) {
-      const created = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: `public ${index}`, description: 'searchable', recitation: 'text', prompts: [], target: 1 })));
+      const created = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: `public ${index}`, description: 'searchable', prompts: [], target: 1 })));
       ids.push(created.id);
       await route.POST(request(`practices/${created.id}`, 'POST', { action: 'publish' }), { params: Promise.resolve({ id: created.id }) });
     }
-    await practices.POST(request('practices', 'POST', { name: 'private searchable', recitation: 'secret', prompts: [], target: 1 }));
+    await practices.POST(request('practices', 'POST', { name: 'private searchable', prompts: [], target: 1 }));
     state.authenticated = false;
     const first = await readJson<DiscoveryPage>(discover.GET(request('discover?kind=practices&sort=latest&q=searchable&page=1')));
     const second = await readJson<DiscoveryPage>(discover.GET(request('discover?kind=practices&sort=latest&q=searchable&page=2')));
@@ -721,8 +720,8 @@ describe('practice API', () => {
     const boundary = await Promise.all(['first', 'second'].map((eventId) => taps.POST(request('practice-session/taps', 'POST', { ...body, eventId, runId: restarted.active.id }))));
     expect(boundary.map((response) => response.status).sort()).toEqual([200, 200]);
     const current = await readJson<ActiveSession>(session.GET(request('practice-session?date=2026-11-13')));
-    expect(current.active.counts).toEqual([1, 0]);
-    expect(current.stats).toEqual({ today: 3, total: 3 });
+    expect(current.active.counts).toEqual([1, 1]);
+    expect(current.stats).toEqual({ today: 3, total: 2 });
     expect((await taps.POST(request('practice-session/taps', 'POST', { ...body, eventId: 'bad-date', date: '2026-02-30' }))).status).toBe(400);
   });
 
@@ -835,8 +834,8 @@ describe('practice API', () => {
     const practice = await import('@/app/api/practices/[id]/route');
     const collections = await import('@/app/api/practice-collections/route');
     const collection = await import('@/app/api/practice-collections/[id]/route');
-    const first = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'first', recitation: 'one', prompts: [], target: 2 })));
-    const second = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'second', recitation: 'two', prompts: ['a', 'b'], target: 3 })));
+    const first = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'first', prompts: [], target: 2 })));
+    const second = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'second', prompts: ['a', 'b'], target: 3 })));
     const created = await collections.POST(request('practice-collections', 'POST', { name: 'ordered', practiceIds: [first.id, second.id, first.id] }));
     expect(created.status).toBe(201);
     const group = await readJson<Collection>(created);
@@ -846,7 +845,7 @@ describe('practice API', () => {
     expect((await practice.DELETE(request(`practices/${first.id}`, 'DELETE'), { params: Promise.resolve({ id: first.id }) })).status).toBe(409);
     const edited = await collection.PATCH(request(`practice-collections/${group.id}`, 'PATCH', { practiceIds: [second.id, first.id] }), { params: Promise.resolve({ id: group.id }) });
     expect((await readJson<Collection>(edited)).items.map((item) => item.id)).toEqual([second.id, first.id]);
-    await practice.PATCH(request(`practices/${first.id}`, 'PATCH', { recitation: 'changed', target: 4 }), { params: Promise.resolve({ id: first.id }) });
+    await practice.PATCH(request(`practices/${first.id}`, 'PATCH', { target: 4 }), { params: Promise.resolve({ id: first.id }) });
     expect((await readJson<Collection>(collection.GET(request(`practice-collections/${group.id}`), { params: Promise.resolve({ id: group.id }) }))).total_target).toBe(7);
     state.owner = 'other';
     expect(await readJson<Practice[]>(practices.GET(request('practices')))).toEqual([]);
@@ -856,7 +855,7 @@ describe('practice API', () => {
     expect((await collection.DELETE(request(`practice-collections/${group.id}`, 'DELETE'), { params: Promise.resolve({ id: group.id }) })).status).toBe(200);
     expect((await practice.GET(request(`practices/${first.id}`), { params: Promise.resolve({ id: first.id }) })).status).toBe(200);
     expect((await practice.DELETE(request(`practices/${first.id}`, 'DELETE'), { params: Promise.resolve({ id: first.id }) })).status).toBe(200);
-    expect((await practices.POST(request('practices', 'POST', { name: 'bad', recitation: 'x', prompts: [], target: 0 }))).status).toBe(400);
+    expect((await practices.POST(request('practices', 'POST', { name: 'bad', prompts: [], target: -1 }))).status).toBe(400);
     state.authenticated = false;
     expect((await practices.GET(request('practices'))).status).toBe(401);
     expect((await collections.POST(request('practice-collections', 'POST', {}))).status).toBe(401);
@@ -866,7 +865,7 @@ describe('practice API', () => {
     const { POST, GET } = await import('@/app/api/practices/route');
     const response = await POST(new NextRequest('http://localhost/api/practices', {
       method: 'POST',
-      body: JSON.stringify({ name: '清心', recitation: '南无观世音菩萨', prompts: ['放下杂念'], target: 3 }),
+      body: JSON.stringify({ name: '清心', prompts: ['放下杂念'], target: 3 }),
     }));
     expect(response.status).toBe(201);
     const created = await readJson<Practice>(response);
