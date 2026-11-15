@@ -1,6 +1,7 @@
 import type { PracticeSessionState } from './practice-types';
 
-export function projectPracticeTap(state: PracticeSessionState, event: { runId: string; itemIndex: number; date: string }): PracticeSessionState {
+export function projectPracticeTap(state: PracticeSessionState, event: { runId: string; itemIndex: number; date: string; count?: number }): PracticeSessionState {
+  const count = Math.max(1, event.count ?? 1);
   const active = state.active;
   if (!active || active.completed || active.id !== event.runId || active.index !== event.itemIndex) return state;
   const date = event.date > state.date ? event.date : state.date;
@@ -9,8 +10,8 @@ export function projectPracticeTap(state: PracticeSessionState, event: { runId: 
   const practice = active.items[active.index];
   const items = active.items.map((item) => ({
     ...item,
-    today_total: (newDay ? 0 : item.today_total ?? 0) + (item.id === practice.id && sameDay ? 1 : 0),
-    personal_total: (item.personal_total ?? 0) + (item.id === practice.id ? 1 : 0),
+    today_total: (newDay ? 0 : item.today_total ?? 0) + (item.id === practice.id && sameDay ? count : 0),
+    personal_total: (item.personal_total ?? 0) + (item.id === practice.id ? count : 0),
   }));
   const counts = items.map((item) => Math.min(item.personal_total ?? 0, item.target));
   const nextIndex = counts.findIndex((count, itemIndex) => count < items[itemIndex].target);

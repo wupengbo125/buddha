@@ -11,6 +11,7 @@ import { loadSettings } from '@/lib/settings';
 import { dateKey, msUntilNextDay } from '@/lib/time';
 import { playWoodFish, prefersReducedMotion, vibrateShort } from '@/lib/sound';
 import { Caption, type CaptionData } from './Caption';
+import { useChantSession } from './useChantSession';
 import { WoodenFish } from './WoodenFish';
 
 export function PracticeChant({ initial, onStateChange }: { initial: PracticeSessionState; onStateChange: (state: PracticeSessionState) => void }) {
@@ -157,28 +158,39 @@ export function PracticeChant({ initial, onStateChange }: { initial: PracticeSes
   const run = session.active;
   if (!run) return null;
   const practice = run.items[run.index];
-  const tap = () => {
+  // 次数模式会话骨架：与时长模式同构——超时清零、攒满 100 声上报一批、零头作废。
+  const idleSeconds = Math.min(60, Math.max(1, practice?.idleSeconds ?? 10));
+  const TAP_BATCH = 100;
+  const sendBatch = (batch: number) => {
     const active = current.current.active;
-    if (!active || active.completed || recoveringRef.current || blockedRef.current) return;
-    const item = active.items[active.index];
+    if (!active || active.completed) return;
     const settings = loadSettings();
     const event = { eventId: crypto.randomUUID(), runId: active.id, itemIndex: active.index,
-      date: dateKey(new Date(), settings.timeZone) };
+      date: dateKey(new Date(), settings.timeZone), count: batch };
     try {
       queue.current.add(event);
     } catch {
       setError('无法保存敲击，请检查浏览器存储设置');
       return;
     }
-    if (settings.soundEnabled) playWoodFish();
-    vibrateShort(prefersReducedMotion());
-    setCaption({ text: item.prompts[active.count % item.prompts.length] || item.name,
-      durationMs: settings.captionMs, token: ++token.current });
     const projected = projectPracticeTap(current.current, event);
     current.current = projected;
     setSession(projected);
     onStateChange(projected);
     void flush();
+  };
+  const chant = useChantSession({ idleSeconds, threshold: TAP_BATCH, counted: true, onBatch: sendBatch });
+
+  const tap = () => {
+    const active = current.current.active;
+    if (!active || active.completed || recoveringRef.current || blockedRef.current) return;
+    const item = active.items[active.index];
+    const settings = loadSettings();
+    chant.tap();
+    if (settings.soundEnabled) playWoodFish();
+    vibrateShort(prefersReducedMotion());
+    setCaption({ text: item.prompts[(chant.taps + (active.count ?? 0)) % item.prompts.length] || item.name,
+      durationMs: settings.captionMs, token: ++token.current });
   };
 
   return (
@@ -187,13 +199,10 @@ export function PracticeChant({ initial, onStateChange }: { initial: PracticeSes
         <div className="chant-caption" aria-live="off">{caption && <Caption key={caption.token} data={caption} />}</div>
         <WoodenFish onTap={tap} disabled={run.completed || recovering || blocked} />
       </div>
-      {!run.completed && <div className="count-row" aria-label={`今日 ${practice?.today_total ?? 0} 声，累计 ${practice?.personal_total ?? 0} 声`}>
-        <span className="count-row-label">今日</span>
-        <span className="count-row-num count-row-today">{(practice?.today_total ?? 0).toLocaleString()}</span>
-        <span className="count-row-sep">/</span>
-        <span className="count-row-label">累计</span>
-        <span className="count-row-num count-row-total">{(practice?.personal_total ?? 0).toLocaleString()}</span>
-        <span className="count-row-label">声</span>
+      {!run.completed && <div className={`count-row ${chant.paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${chant.taps} 声，今日 ${practice?.today_total ?? 0} 声，累计 ${practice?.personal_total ?? 0} 声`}>
+        <span className="count-row-label">本次</span>
+        <span className="count-row-num count-row-today">{chant.taps.toLocaleString()}</span>
+        <span className="count-row-sub">今日 {(practice?.today_total ?? 0).toLocaleString()} · 累计 {(practice?.personal_total ?? 0).toLocaleString()} 声</span>
       </div>}
       {practice?.target ? <div className="count-progress" aria-label={`累计 ${practice.personal_total ?? 0} / 目标 ${practice.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((practice.personal_total ?? 0) / practice.target) * 100)}%` }} /></div></div> : null}
       {run.completed && <Link href="/practice-collections" className="secondary-button">我的发愿集</Link>}

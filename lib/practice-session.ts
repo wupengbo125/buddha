@@ -92,18 +92,17 @@ export async function changeSession(db: D1Database, owner: string, body: unknown
   return sessionState(db, owner, date);
 }
 
-const tapInput = z.object({ eventId: z.string().min(1).max(128), runId: z.string().min(1).max(128), itemIndex: z.number().int().nonnegative(), date: practiceDate, pendingEventIds: z.array(z.string()).optional() });
+const tapInput = z.object({ eventId: z.string().min(1).max(128), runId: z.string().min(1).max(128), itemIndex: z.number().int().nonnegative(), date: practiceDate, count: z.number().int().min(1).max(1000).default(1), pendingEventIds: z.array(z.string()).optional() });
 
 export async function practiceTap(db: D1Database, owner: string, body: unknown, date: string): Promise<PracticeSessionState> {
   const input = tapInput.parse(body);
   let committed: { run_id: string; item_index: number; date: string };
   try {
     const result = await atomic(db, [
-      db.prepare('INSERT INTO practice_events(owner_id, event_id, run_id, item_index, date) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM practice_events WHERE owner_id = ? AND event_id = ?)')
-        .bind(owner, input.eventId, input.runId, input.itemIndex, input.date, owner, input.eventId),
+      // count = 本次上报的声数；tap_events 由 practice_event_apply 触发器按 count 写入。
+      db.prepare('INSERT INTO practice_events(owner_id, event_id, run_id, item_index, date, count) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM practice_events WHERE owner_id = ? AND event_id = ?)')
+        .bind(owner, input.eventId, input.runId, input.itemIndex, input.date, input.count, owner, input.eventId),
       db.prepare('SELECT run_id, item_index, date FROM practice_events WHERE owner_id = ? AND event_id = ?').bind(owner, input.eventId),
-      db.prepare("INSERT OR IGNORE INTO tap_events(id, counter_id, device_id, event_id, delta, date, created_at) SELECT ?, practice_id, ?, 'practice:' || ?, 1, ?, ? FROM practice_run_items WHERE run_id = ? AND item_index = ?")
-        .bind(`practice:${owner}:${input.eventId}`, owner, input.eventId, input.date, new Date().toISOString(), input.runId, input.itemIndex),
     ]);
     committed = result[1].results![0] as typeof committed;
   } catch (error) {

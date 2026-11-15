@@ -116,6 +116,20 @@ describe('practice API', () => {
     expect(result.active.items[0].personal_total).toBe(2);
   });
 
+  it('applies a batch count of taps in one event', async () => {
+    const { practice, collection } = await seed(200);
+    const session = await import('@/app/api/practice-session/route');
+    const sessionTaps = await import('@/app/api/practice-session/taps/route');
+    const started = await readJson<ActiveSession>(session.POST(request('practice-session?date=2026-11-14', 'POST', {
+      action: 'start', collectionId: collection.id,
+    })));
+    const result = await readJson<ActiveSession>(sessionTaps.POST(request('practice-session/taps?date=2026-11-14', 'POST', {
+      eventId: 'batch-100', runId: started.active.id, itemIndex: 0, date: '2026-11-14', count: 100,
+    })));
+    expect(result.active.items[0].personal_total).toBe(100);
+    expect(result.active.items[0].today_total).toBe(100);
+  });
+
   it('keeps today counts when older taps arrive from either practice entry', async () => {
     const { practice, collection } = await seed(10);
     const counters = await import('@/app/api/counters/route');

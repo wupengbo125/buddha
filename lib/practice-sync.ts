@@ -1,7 +1,7 @@
 import type { PracticeSessionState } from './practice-types';
 import { PendingQueue } from './storage';
 
-export type PendingPracticeTap = { eventId: string; runId: string; itemIndex: number; date: string };
+export type PendingPracticeTap = { eventId: string; runId: string; itemIndex: number; date: string; count?: number };
 
 export async function sendPracticeTap(queue: PendingQueue<PendingPracticeTap>, event: PendingPracticeTap, timeZone: string, pendingEventIds?: string[]) {
   const response = await fetch(`/api/practice-session/taps?timeZone=${encodeURIComponent(timeZone)}`, {
