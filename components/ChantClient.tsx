@@ -116,10 +116,6 @@ export function ChantClient() {
   
   const [paused, setPaused] = useState(true);
   const [, setClock] = useState(0);
-  // 计数模式：本地攒满 100 声上报一次，不满 100 的零头作废（与时长模式同构）。
-  const TAP_BATCH = 100;
-  const [, setTapTick] = useState(0);
-  const tapSession = useRef({ count: 0 });
   // startAt：本次真实起点（null = 本次没有在走）；reported：本次已上报的整分钟数。
   const session = useRef<{ startAt: number | null; lastTapAt: number | null; reported: number; seq: number }>({ startAt: null, lastTapAt: null, reported: 0, seq: 0 });
 
@@ -142,31 +138,9 @@ export function ChantClient() {
       .catch(() => undefined);
   };
 
-  const reportTaps = (taps: number) => {
-    if (!selected || taps <= 0) return;
-    const local = new Date();
-    const date = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
-    const eventId = `taps-${selected.id}-${Date.now()}-${taps}`;
-    void fetch(`/api/counters/${selected.id}/taps`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, delta: taps, date }),
-    })
-      .then((res) => { if (res.ok) void refreshCounts(); })
-      .catch(() => undefined);
-  };
-
-  // 敲击（计数模式）：本地 +1，满 100 上报一次；音效弹幕照常。
-  const tapCount = () => {
-    tapSession.current.count += 1;
-    if (tapSession.current.count % TAP_BATCH === 0) reportTaps(TAP_BATCH);
-    setTapTick((value) => value + 1);
-  };
-
   // 本次时间正常流动，界面每秒刷新；这里不做任何累计逻辑。
   useEffect(() => {
     session.current = { startAt: null, lastTapAt: null, reported: 0, seq: 0 };
-    tapSession.current = { count: 0 };
     setPaused(true);
     setClock((value) => value + 1);
     if (!isTime) return;
@@ -210,10 +184,8 @@ export function ChantClient() {
   useEffect(() => {
     const drop = () => {
       session.current = { startAt: null, lastTapAt: null, reported: 0, seq: session.current.seq };
-      tapSession.current = { count: 0 };
       if (timerRef.current) clearTimeout(timerRef.current);
       setPaused(true);
-      setTapTick((value) => value + 1);
     };
     const onHidden = () => { if (document.visibilityState === 'hidden') drop(); };
     window.addEventListener('pagehide', drop);
@@ -261,10 +233,7 @@ export function ChantClient() {
                 if (isTime) {
                   tapSettle();
                   feedbackTap(selected);
-                } else {
-                  tapCount();
-                  feedbackTap(selected);
-                }
+                } else handleTap(selected);
               }} />
             </div>
             {isTime ? (
@@ -274,10 +243,13 @@ export function ChantClient() {
                 <span className="count-row-sub">今日 {hm(baseToday)} · 累计 {hm(baseTotal)}</span>
               </div>
             ) : (
-              <div className="count-row" aria-label={`本次 ${tapSession.current.count} 声，今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
-                <span className="count-row-label">本次</span>
-                <span className="count-row-num count-row-today">{tapSession.current.count.toLocaleString()}</span>
-                <span className="count-row-sub">今日 {(state?.today ?? 0).toLocaleString()} · 累计 {(state?.total ?? 0).toLocaleString()} 声</span>
+              <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
+                <span className="count-row-label">今日</span>
+                <span className="count-row-num count-row-today">{(state?.today ?? 0).toLocaleString()}</span>
+                <span className="count-row-sep">/</span>
+                <span className="count-row-label">累计</span>
+                <span className="count-row-num count-row-total">{(state?.total ?? 0).toLocaleString()}</span>
+                <span className="count-row-label">声</span>
               </div>
             )}
             {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, (baseTotal / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
