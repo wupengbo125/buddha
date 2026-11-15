@@ -653,7 +653,7 @@ describe('practice API', () => {
     state.owner = 'reader';
     expect((await practiceRoute.POST(request(`practices/${practice.id}`, 'POST', { action: 'copy' }), { params: Promise.resolve({ id: practice.id }) })).status).toBe(404);
     const remaining = await readJson<Practice[]>(practices.GET(request('practices')));
-    expect(remaining.find((item) => item.id === single.id)).toMatchObject({ name: 'practice', source_name: 'practice', source_owner_id: 'owner' });
+    expect(remaining.find((item) => item.id === single.id)).toMatchObject({ name: 'my text', source_name: 'practice', source_owner_id: 'owner' });
     expect((await readJson<Collection>(collectionRoute.GET(request(`practice-collections/${copy.id}`), { params: Promise.resolve({ id: copy.id }) }))).items.map((item) => item.name)).toEqual(['practice', 'practice']);
   });
 
