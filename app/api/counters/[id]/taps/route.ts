@@ -6,10 +6,11 @@ import { requireSession, jsonError, readJson } from '@/lib/http';
 import { OWNER_ID } from '@/lib/auth';
 import type { CounterTotals } from '@/lib/taps';
 
-// 计数模式 delta 固定 1；时长模式下由服务端按相邻敲击的真实间隔算秒数，前端报的数字不作数。
+// 计数模式：delta = 本批敲击声数（本地攒满「最少坚持」才上报一次）。
+// 时长模式：delta 由服务端按相邻敲击的真实间隔算秒数，前端报的数字不作数。
 const TapBody = z.object({
   event_id: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/),
-  delta: z.literal(1),
+  delta: z.number().int().min(1).max(10000).default(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const parsed = TapBody.safeParse(await readJson(req));
   if (!parsed.success) return jsonError('输入无效', 400);
-  const { event_id, date } = parsed.data;
+  const { event_id, date, delta: reported } = parsed.data;
   try {
     const { DB } = getEnv();
     const practice = await DB.prepare('SELECT target_kind, idle_seconds FROM practices WHERE id = ? AND owner_id = ?').bind(id, OWNER_ID).first<{ target_kind: string; idle_seconds: number }>();
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!exists || !practice) return jsonError('计数器不存在', 404);
 
     // 时长模式：只计入上一次敲击之后、且不超过超时时长的这段时间；超时部分不计。
-    let delta = 1;
+    let delta = reported;
     if (practice.target_kind === 'time') {
       const idle = Math.min(60, Math.max(1, practice.idle_seconds || 10));
       const last = await DB.prepare('SELECT created_at FROM tap_events WHERE counter_id = ? AND device_id = ? ORDER BY created_at DESC LIMIT 1').bind(id, OWNER_ID).first<{ created_at: string }>();

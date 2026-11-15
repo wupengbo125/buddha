@@ -116,6 +116,22 @@ describe('practice API', () => {
     expect(result.active.items[0].personal_total).toBe(2);
   });
 
+  it('accepts a batch delta on the counter tap route', async () => {
+    const practices = await import('@/app/api/practices/route');
+    const counters = await import('@/app/api/counters/route');
+    const taps = await import('@/app/api/counters/[id]/taps/route');
+    const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', {
+      name: 'batch', prompts: ['first'], target: 500,
+    })));
+    const context = { params: Promise.resolve({ id: practice.id }) };
+    const response = await taps.POST(request(`counters/${practice.id}/taps`, 'POST', {
+      event_id: 'batch-100', delta: 100, date: '2026-11-13',
+    }), context);
+    expect(response.status).toBe(200);
+    expect(await readJson(response)).toMatchObject({ total: 100, applied: true });
+    expect(await readJson(counters.GET(request('counters')))).toMatchObject({ counters: [{ id: practice.id, total: 100 }] });
+  });
+
   it('applies a batch count of taps in one event', async () => {
     const { practice, collection } = await seed(200);
     const session = await import('@/app/api/practice-session/route');
