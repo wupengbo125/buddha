@@ -155,7 +155,7 @@ export function ChantClient() {
               <WoodenFish onTap={() => handleTap(selected)} />
             </div>
             {isTime ? (
-              <div className="count-row" aria-label={`今日 ${hm(baseToday + tick)}，累计 ${hm(baseTotal + tick)}`}>
+              <div className={`count-row ${tick >= idleSeconds ? 'count-row-paused' : ''}`} aria-label={`今日 ${hm(baseToday + tick)}，累计 ${hm(baseTotal + tick)}`}>
                 <span className="count-row-label">今日</span>
                 <span className="count-row-num count-row-today">{hm(baseToday + tick)}</span>
                 <span className="count-row-sep">/</span>
