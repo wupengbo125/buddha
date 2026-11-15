@@ -235,8 +235,9 @@ export function ChantClient() {
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
               <WoodenFish onTap={() => {
+                // 时长模式只走本地计时与分钟上报；不再发 /taps，避免服务端重复补秒。
                 if (isTime) tapSettle();
-                handleTap(selected);
+                else handleTap(selected);
               }} />
             </div>
             {isTime ? (
