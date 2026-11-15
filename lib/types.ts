@@ -14,6 +14,9 @@ export interface Counter {
   title?: string; // 任务标题（发愿名），name 是佛号
   prompts?: string; // JSON 数组：弹幕
   target?: number; // 这条发愿的目标总量
+  target_kind?: 'count' | 'time';
+  target_seconds?: number;
+  idle_seconds?: number;
 }
 
 export interface TapResult {

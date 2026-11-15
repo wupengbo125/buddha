@@ -14,6 +14,9 @@ export interface Practice {
   description: string;
   prompts: string[];
   target: number;
+  targetKind: 'count' | 'time';
+  targetSeconds: number;
+  idleSeconds: number;
   visibility: PracticeVisibility;
   source_id?: string | null;
   source_name?: string | null;

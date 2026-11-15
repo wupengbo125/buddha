@@ -12,6 +12,13 @@ export type PracticeKind = 'practices' | 'collections';
 export type { Collection as PracticeCollection, Practice } from '@/lib/practice-types';
 export type PracticeContent = Practice | PracticeCollection;
 
+function durationLabel(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  return hours > 0 ? `${hours} 时 ${minutes} 分` : `${minutes} 分`;
+}
+
 const visibilityLabels = { private: '私有', pending: '待审核', public: '已公开', rejected: '审核未通过' };
 
 interface Editor {
@@ -19,6 +26,9 @@ interface Editor {
   name: string;
   description: string;
   target: string;
+  targetKind: 'count' | 'time';
+  minutes: string;
+  idle: string;
   prompts: string[];
   practiceIds: string[];
 }
@@ -29,6 +39,9 @@ function makeEditor(item?: PracticeContent): Editor {
     name: item?.name ?? '',
     description: item?.description ?? '',
     target: item && 'target' in item ? String(item.target) : '10000',
+    targetKind: item && 'targetKind' in item && item.targetKind === 'time' ? 'time' : 'count',
+    minutes: item && 'targetSeconds' in item && item.targetSeconds ? String(Math.round(item.targetSeconds / 60)) : '60',
+    idle: item && 'idleSeconds' in item ? String(item.idleSeconds || 10) : '10',
     prompts: item && 'prompts' in item ? [...item.prompts] : [],
     practiceIds: item && 'items' in item ? item.items.map((practice) => practice.id) : [],
   };
@@ -115,7 +128,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
   useEffect(() => { try { setLastPracticeId(window.localStorage.getItem('buddha:last-practice') ?? ''); } catch {} }, []);
 
   const allItems = kind === 'practices' ? practices : collections;
-  const foldDone = allItems.filter((entry) => 'items' in entry ? Boolean(entry.progress?.completed) : (entry.personal_total ?? 0) >= entry.target);
+  const foldDone = allItems.filter((entry) => 'items' in entry ? Boolean(entry.progress?.completed) : (entry.targetKind === 'time' ? (entry.personal_total ?? 0) >= entry.targetSeconds : (entry.personal_total ?? 0) >= entry.target));
   const entityName = kind === 'practices' ? '发愿' : '发愿集';
   const statusFold = allItems.filter((entry) => entry.visibility === 'public' && !foldDone.some((done) => done.id === entry.id));
   const items = allItems.filter((entry) => entry.visibility !== 'public' && !foldDone.some((done) => done.id === entry.id));
@@ -134,7 +147,9 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
     try {
       const common = { name: editor.name.trim(), description: editor.description.trim() };
       const body = kind === 'practices'
-        ? { ...common, prompts: editor.prompts.map((prompt) => prompt.trim()).filter(Boolean), target: Number(editor.target) }
+        ? { ...common, prompts: editor.prompts.map((prompt) => prompt.trim()).filter(Boolean), target: Number(editor.target),
+            targetKind: editor.targetKind, targetSeconds: editor.targetKind === 'time' ? Math.round(Number(editor.minutes) * 60) : 0,
+            idleSeconds: Math.min(60, Math.max(1, Number(editor.idle) || 10)) }
         : { ...common, practiceIds: editor.practiceIds };
       const path = editor.id ? `${endpoint}/${encodeURIComponent(editor.id)}` : endpoint;
       const result = await practiceRequest<PracticeContent>(path, editor.id ? 'PATCH' : 'POST', body);
@@ -253,7 +268,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
           <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{collectionMeta(item)}</p>
         </button> : <div className={styles.rowMain}>
           <h2 className={styles.contentTitle}>{item.name}</h2>
-          <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{`今日 ${(item.today_total ?? 0).toLocaleString()} · 累计 ${(item.personal_total ?? 0).toLocaleString()}`}</p>
+          <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{item.targetKind === 'time' ? `今日 ${durationLabel(item.today_total ?? 0)} · 累计 ${durationLabel(item.personal_total ?? 0)} · 目标 ${durationLabel(item.targetSeconds)}` : `今日 ${(item.today_total ?? 0).toLocaleString()} · 累计 ${(item.personal_total ?? 0).toLocaleString()}`}</p>
         </div>}
         <div className={styles.cardButtons}>
           <button type="button" className="icon-button" title={`进入 ${item.name}`} aria-label={`进入 ${item.name}`} disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><CircleArrowRight size={19} /></button>
@@ -286,7 +301,17 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
             <label className={styles.label} htmlFor="practice-name">名称（必填）<input id="practice-name" className="field" required value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>
             <label className={styles.label} htmlFor="practice-description">简介<textarea id="practice-description" className="field" rows={2} value={editor.description} onChange={(event) => setEditor({ ...editor, description: event.target.value })} /></label>
             {kind === 'practices' ? <>
-              <label className={styles.label} htmlFor="practice-target">目标次数（必填）<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
+              <div className={styles.typeRow} role="group" aria-label="目标类型">
+                <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'count' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'count' })}>次数</button>
+                <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'time' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'time' })}>时长</button>
+              </div>
+              {editor.targetKind === 'count'
+                ? <label className={styles.label} htmlFor="practice-target">目标次数（必填）<input id="practice-target" className="field" type="number" min="1" step="1" required inputMode="numeric" value={editor.target} onChange={(event) => setEditor({ ...editor, target: event.target.value })} /></label>
+                : <div className={styles.timeFields}>
+                    <label className={styles.label} htmlFor="practice-minutes">目标时长（分钟）<input id="practice-minutes" className="field" type="number" min="1" max="10080" step="1" required inputMode="numeric" value={editor.minutes} onChange={(event) => setEditor({ ...editor, minutes: event.target.value })} /></label>
+                    <label className={styles.label} htmlFor="practice-idle">超时时长（秒）<input id="practice-idle" className="field" type="number" min="1" max="60" step="1" required inputMode="numeric" value={editor.idle} onChange={(event) => setEditor({ ...editor, idle: event.target.value })} /></label>
+                    <p className={styles.meta}>超过这么久没有敲击，就认为人不在，计时自动停住；再敲一下继续。</p>
+                  </div>}
               <div><div className={styles.sectionHeading}><h3>弹幕</h3></div>
                 <ol className={styles.editList}>{editor.prompts.map((prompt, index) => <li key={index} className={styles.editRow}>
                   <label className={styles.grow}><span className={styles.srOnly}>弹幕 {index + 1}</span><input className="field" value={prompt} onChange={(event) => setEditor({ ...editor, prompts: editor.prompts.map((value, position) => position === index ? event.target.value : value) })} /></label>
@@ -298,7 +323,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
               <div className={styles.levelHead}><h3>关卡</h3><span className={styles.meta}>{editor.practiceIds.length} 关</span></div>
               <ol className={styles.levelList}>{editor.practiceIds.map((id, index) => { const practice = practices.find((entry) => entry.id === id); return <li className={styles.levelRow} key={`${id}-${index}`}><span className={styles.levelNo}>{index + 1}</span><span className={styles.grow}><b>{practice?.name ?? '发愿已删除'}</b><span className={styles.meta}>{practice ? `${practice.target.toLocaleString()} 次` : '需要移除'}</span></span><div className={styles.orderButtons}><button type="button" className="icon-button" title={`上移第 ${index + 1} 关`} aria-label={`上移第 ${index + 1} 关`} disabled={index === 0} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, -1) })}><ArrowUp size={16} /></button><button type="button" className="icon-button" title={`下移第 ${index + 1} 关`} aria-label={`下移第 ${index + 1} 关`} disabled={index === editor.practiceIds.length - 1} onClick={() => setEditor({ ...editor, practiceIds: moveEntry(editor.practiceIds, index, 1) })}><ArrowDown size={16} /></button><button type="button" className="icon-button" title={`移除第 ${index + 1} 关`} aria-label={`移除第 ${index + 1} 关`} onClick={() => setEditor({ ...editor, practiceIds: editor.practiceIds.filter((entry) => entry !== id) })}><X size={16} /></button></div></li>; })}</ol>
               {editor.practiceIds.length === 0 && <p className={styles.meta}>还没有关卡，点下面的发愿就能成为第 1 关。</p>}
-              <div className={styles.levelChips}>{practices.filter((practice) => !editor.practiceIds.includes(practice.id)).map((practice) => <button type="button" className={styles.chip} key={practice.id} disabled={busy} onClick={() => setEditor({ ...editor, practiceIds: [...editor.practiceIds, practice.id] })}><Plus size={14} />{practice.name}</button>)}</div>
+              <div className={styles.levelChips}>{practices.filter((practice) => practice.targetKind !== 'time' && !editor.practiceIds.includes(practice.id)).map((practice) => <button type="button" className={styles.chip} key={practice.id} disabled={busy} onClick={() => setEditor({ ...editor, practiceIds: [...editor.practiceIds, practice.id] })}><Plus size={14} />{practice.name}</button>)}</div>
               {practices.length === 0 && <Link href="/practices" className={styles.textLink}><Plus size={16} />先去创建发愿</Link>}
             </>}
               {editingItem && <div className={styles.pubRow}><div className={styles.grow}><p className={styles.pubTitle}>公开到广场</p><p className={styles.meta}>{editingItem.visibility === 'rejected' ? '上次审核未通过，改完再打开这里重新送审' : editingItem.visibility === 'pending' ? '正在审核，关掉就是撤回' : editingItem.visibility === 'public' ? '同修能在广场看到这一页' : '打开后送审，通过就在广场出现'}</p></div>
@@ -321,7 +346,7 @@ export function PracticeLibrary({ kind = 'practices' }: { kind?: PracticeKind })
       )}
       {!loading && foldDone.length > 0 && <section className={styles.fold}>
         <button type="button" className={styles.foldHead} aria-expanded={foldOpen} onClick={() => setFoldOpen((value) => !value)}><span>已完成 · {foldDone.length}</span><span>{foldOpen ? '收起' : '展开'}{foldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
-        {foldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{foldDone.map((item) => <li className={styles.contentRow} key={item.id}><div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2><span className={styles.pubLabel}>{'items' in item ? '已完成' : `已念 ${(item.personal_total ?? 0).toLocaleString()} 次`}</span></div><div className={styles.actions}><button type="button" className="secondary-button" disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><Play size={16} />再念一次</button></div></li>)}</ul>}
+        {foldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{foldDone.map((item) => <li className={styles.contentRow} key={item.id}><div className={styles.rowHeading}><h2 className={styles.contentTitle}>{item.name}</h2><span className={styles.pubLabel}>{'items' in item ? '已完成' : ('targetKind' in item && item.targetKind === 'time' ? `已念 ${durationLabel(item.personal_total ?? 0)}` : `已念 ${(item.personal_total ?? 0).toLocaleString()} 次`)}</span></div><div className={styles.actions}><button type="button" className="secondary-button" disabled={busy} onClick={() => ('items' in item ? sessionAction('start', item.id) : startPractice(item))}><Play size={16} />再念一次</button></div></li>)}</ul>}
       </section>}
       {menu && <div className={styles.scrim} onClick={() => setMenu(null)} />}
       {menu && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label={`${menu.name} 的更多操作`}>

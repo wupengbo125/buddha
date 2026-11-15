@@ -14,6 +14,13 @@ import { useChant } from './useChant';
 import { PracticeChant } from './PracticeChant';
 import type { PracticeSessionState } from '@/lib/practice-types';
 
+function hm(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 export function ChantClient() {
   const { counters, states, caption, loading, error, handleTap, refreshCounts } = useChant();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -97,6 +104,19 @@ export function ChantClient() {
   const selected = counters.find((counter) => counter.id === selectedId) ?? counters[0];
   const state = selected ? states[selected.id] ?? createState('') : null;
 
+  // 时长模式：本地只负责让秒针走起来，停手超过超时时长就停在原数，服务端每次敲击只补这段间隔。
+  const isTime = selected?.target_kind === 'time';
+  const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
+  const baseToday = state?.today ?? 0;
+  const baseTotal = state?.total ?? 0;
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    setTick(0);
+    if (!isTime) return;
+    const timer = setInterval(() => setTick((value) => Math.min(idleSeconds, value + 1)), 1000);
+    return () => clearInterval(timer);
+  }, [isTime, idleSeconds, baseToday, baseTotal, selected?.id]);
+
   const toggleSound = () => {
     const next = !soundEnabled;
     saveSettings({ ...loadSettings(), soundEnabled: next });
@@ -134,15 +154,26 @@ export function ChantClient() {
               </div>
               <WoodenFish onTap={() => handleTap(selected)} />
             </div>
-            <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
-              <span className="count-row-label">今日</span>
-              <span className="count-row-num count-row-today">{(state?.today ?? 0).toLocaleString()}</span>
-              <span className="count-row-sep">/</span>
-              <span className="count-row-label">累计</span>
-              <span className="count-row-num count-row-total">{(state?.total ?? 0).toLocaleString()}</span>
-              <span className="count-row-label">声</span>
-            </div>
-            {selected.target ? <div className="count-progress" aria-label={`累计 ${state?.total ?? 0} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((state?.total ?? 0) / selected.target) * 100)}%` }} /></div></div> : null}
+            {isTime ? (
+              <div className="count-row" aria-label={`今日 ${hm(baseToday + tick)}，累计 ${hm(baseTotal + tick)}`}>
+                <span className="count-row-label">今日</span>
+                <span className="count-row-num count-row-today">{hm(baseToday + tick)}</span>
+                <span className="count-row-sep">/</span>
+                <span className="count-row-label">累计</span>
+                <span className="count-row-num count-row-total">{hm(baseTotal + tick)}</span>
+              </div>
+            ) : (
+              <div className="count-row" aria-label={`今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
+                <span className="count-row-label">今日</span>
+                <span className="count-row-num count-row-today">{(state?.today ?? 0).toLocaleString()}</span>
+                <span className="count-row-sep">/</span>
+                <span className="count-row-label">累计</span>
+                <span className="count-row-num count-row-total">{(state?.total ?? 0).toLocaleString()}</span>
+                <span className="count-row-label">声</span>
+              </div>
+            )}
+            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal + tick)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((baseTotal + tick) / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
+            : !isTime && selected.target ? <div className="count-progress" aria-label={`累计 ${state?.total ?? 0} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((state?.total ?? 0) / selected.target) * 100)}%` }} /></div></div> : null}
           </div>
         </>
       )}
