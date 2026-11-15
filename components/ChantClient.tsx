@@ -207,9 +207,9 @@ export function ChantClient() {
               </div>
               <WoodenFish onTap={() => {
                 // 时长模式只走本地计时与分钟上报，不发 /taps；但音效弹幕照常。
-                {chant.tap();}
-                {feedbackTap(selected)}
-                {chant.evaluate(chant.seconds())}
+                chant.tap();
+                feedbackTap(selected, isTime ? 0 : chant.taps);
+                chant.evaluate(chant.seconds());
               }} />
             </div>
             {isTime ? (

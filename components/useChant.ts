@@ -172,11 +172,12 @@ export function useChant() {
   }, []);
 
   // 只做音效 / 震动 / 弹幕，不改计数、不发 /taps：时长模式敲击时用。
-  function feedbackTap(counter: Counter) {
+  function feedbackTap(counter: Counter, extra = 0) {
     settingsRef.current = loadSettings();
     captionToken.current += 1;
     setCaption({
-      text: nextCaptionText(counter, statesRef.current[counter.id]?.today ?? 0),
+      // extra = 本地这轮还没上报的敲击数，保证弹幕按「每一下」轮播，而不是等整批上报后才换。
+      text: nextCaptionText(counter, (statesRef.current[counter.id]?.today ?? 0) + extra),
       durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
       token: captionToken.current,
     });
