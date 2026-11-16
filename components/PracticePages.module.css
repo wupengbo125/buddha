@@ -32,16 +32,21 @@
 .confirmation { padding: 20px 0; border-bottom: 1px solid rgb(var(--c-danger) / .4); }
 .confirmation h2 { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .confirmation p { color: rgb(var(--c-muted)); font-size: 13px; margin-top: 8px; line-height: 1.7; }
-.contentList { border-top: 1px solid var(--c-line); }
+.contentList { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
 .cardActions { margin-top: 2px; justify-content: flex-end; }
-.contentRow { padding: 14px 0; border-bottom: 1px solid var(--c-line); }
-.runningRow { border-left: 3px solid rgb(var(--c-accent)); padding-left: 12px; background: linear-gradient(90deg, rgb(var(--c-accent-soft) / .38), transparent 74%); }
+.contentRow { position: relative; padding: 15px 16px 14px; border: 1px solid var(--c-line); border-radius: 14px; background: rgb(var(--c-surface) / .55); transition: border-color .2s ease, background .2s ease; }
+.contentRow:hover { border-color: rgb(var(--c-accent) / .3); background: rgb(var(--c-surface) / .8); }
+.runningRow { border-color: rgb(var(--c-accent) / .45); background: linear-gradient(110deg, rgb(var(--c-accent-soft) / .7), rgb(var(--c-surface) / .5) 62%); }
+.runningRow::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: rgb(var(--c-accent)); }
 .rowHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rowMain { min-width: 0; }
 button.rowMain { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
-.rowMeta { margin-top: 6px; font-size: 11.5px; color: rgb(var(--c-muted)); letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rowMeta { margin-top: 7px; font-size: 11.5px; color: rgb(var(--c-muted)); letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.rowProgress { margin-top: 11px; height: 3px; border-radius: 3px; background: rgb(var(--c-muted) / .22); overflow: hidden; }
+.rowProgress i { display: block; height: 100%; border-radius: 3px; background: rgb(var(--c-accent)); opacity: .75; }
+.rowProgress[data-done='true'] i { opacity: 1; background: rgb(var(--c-gold)); }
 .rowMetaRunning { color: rgb(var(--c-accent)); }
-.contentTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 21px; line-height: 1.25; letter-spacing: .02em; min-width: 0; overflow-wrap: anywhere; }
+.contentTitle { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 20px; line-height: 1.3; letter-spacing: .02em; min-width: 0; overflow-wrap: anywhere; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.5; color: rgb(var(--c-muted)); flex-shrink: 0; padding-top: 7px; }
 .badge[data-status='public'] { color: rgb(var(--c-accent)); }
 .badge[data-status='rejected'] { color: rgb(var(--c-danger)); }
@@ -50,7 +55,7 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .textLink { color: rgb(var(--c-accent)); display: inline-flex; align-items: center; gap: 5px; min-height: 44px; font-size: 13px; overflow-wrap: anywhere; }
 .reviewLinks { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; margin-top: 8px; }
 .reviewLinks > span { width: 100%; }
-.details { padding-top: 16px; }
+.details { padding-top: 14px; margin-top: 12px; border-top: 1px dashed var(--c-line); }
 .recitation { white-space: pre-wrap; overflow-wrap: anywhere; font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 17px; line-height: 1.9; margin: 6px 0 14px; }
 .promptList { list-style: decimal; padding-left: 22px; color: rgb(var(--c-ink-soft)); font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; }
 .sequence { margin-top: 18px; border-top: 1px solid var(--c-line); }
@@ -85,6 +90,8 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .smallTitle { font-size: 13px; font-weight: 600; color: rgb(var(--c-muted)); margin-bottom: 14px; }
 .publicSection .sequence { margin-top: 0; border-top: 0; }
 .unavailableTitle { font-size: 19px; color: rgb(var(--c-ink-soft)); }
+.summary { display: flex; align-items: baseline; gap: 6px; margin: -20px 0 18px; font-size: 12px; color: rgb(var(--c-muted)); font-variant-numeric: tabular-nums; }
+.summary b { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 15px; font-weight: 600; color: rgb(var(--c-accent)); }
 @media (max-width: 359px) {
   .editRow { flex-wrap: wrap; }
   .editRow > .grow, .editRow > label { flex-basis: calc(100% - 32px); }
@@ -107,7 +114,8 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .switch:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
 
 /* ── 每条一个主按钮 + 一个「⋯」。其余动作进面板。 ── */
-.cardButtons { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.cardButtons { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.cardButtons > button:first-child { color: rgb(var(--c-accent)); }
 .more { width: 40px; height: 40px; min-height: 40px; display: grid; place-items: center; border: 0; border-radius: 10px; color: rgb(var(--c-muted)); background: none; }
 .more:hover { background: rgb(var(--c-surface)); }
 
@@ -161,9 +169,10 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .confirmation h2 { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 18px; font-weight: 400; margin: 0 0 6px; }
 
 /* ── 已完成：默认折叠，挂在列表末尾 ── */
-.fold { border-top: 1px solid var(--c-line); margin-top: 18px; }
+.fold { border-top: 1px solid var(--c-line); margin-top: 22px; }
 .foldHead { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 0; background: none; border: 0; color: rgb(var(--c-ink)); font-size: 13px; text-align: left; }
-.foldHead span:last-child { color: rgb(var(--c-muted)); font-size: 12px; }
+.foldHead span:first-child { letter-spacing: .04em; }
+.foldHead span:last-child { color: rgb(var(--c-muted)); font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
 .foldBody { padding-bottom: 4px; }
 /* 卡片上的收藏 */
 .collect { width: 34px; height: 34px; min-height: 34px; display: grid; place-items: center; border: 1px solid var(--c-line); border-radius: 6px; background: none; color: rgb(var(--c-ink-soft)); }

@@ -228,6 +228,11 @@ export function PracticeLibrary() {
 
   const isRunning = (item: Practice) => item.id === lastPracticeId;
 
+  const progressOf = (item: Practice) => {
+    const done = item.targetKind === 'time' ? (item.personal_total ?? 0) / Math.max(1, item.targetSeconds) : (item.personal_total ?? 0) / Math.max(1, item.target);
+    return Math.min(100, Math.max(0, done * 100));
+  };
+
   const renderCard = (item: Practice) => (
     <li className={`${styles.contentRow} ${isRunning(item) ? styles.runningRow : ''}`} key={item.id}>
       <div className={styles.rowHeading}>
@@ -240,6 +245,7 @@ export function PracticeLibrary() {
           <button type="button" className={styles.more} title={`${item.name} 的更多操作`} aria-label={`${item.name} 的更多操作`} aria-haspopup="dialog" aria-expanded={menu?.id === item.id} disabled={busy} onClick={() => { setMenu(item); setConfirmation(null); }}><EllipsisVertical size={18} /></button>
         </div>
       </div>
+      <div className={styles.rowProgress} data-done={item.roundDone ? 'true' : 'false'} aria-hidden="true"><i style={{ width: `${progressOf(item)}%` }} /></div>
       {expanded === item.id && <div className={styles.details}>{item.prompts.length > 0 && <><h3 className={styles.meta}>弹幕</h3><ol className={styles.promptList}>{item.prompts.map((prompt, index) => <li key={index}>{prompt}</li>)}</ol></>}</div>}
     </li>
   );
@@ -250,6 +256,7 @@ export function PracticeLibrary() {
         <div><p className="eyebrow">我的内容</p><h1 className="page-title">我的发愿</h1></div>
         <button type="button" className="icon-button bg-accent-soft text-accent" title="新增发愿" aria-label="新增发愿" disabled={loading || busy} onClick={() => { setEditor(makeEditor()); setError(''); setConfirmation(null); }}><Plus size={22} /></button>
       </header>
+      {!loading && practices.length > 0 && <p className={styles.summary}><b>{practices.length}</b>个发愿 · 今日念 {practices.reduce((sum, item) => sum + (item.targetKind === 'count' ? (item.today_total ?? 0) : 0), 0).toLocaleString()} 声</p>}
 
       {error && <div role="alert" className="error-message">{error}{needsLogin && <> <Link href="/login" className={styles.textLink}>登录</Link></>}<button type="button" className="icon-button" title="重新载入" aria-label="重新载入" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={17} /></button></div>}
       <p className={styles.notice} role="status" aria-live="polite">{notice}</p>
