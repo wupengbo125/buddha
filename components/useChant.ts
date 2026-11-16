@@ -13,6 +13,7 @@ import {
 } from '@/lib/counter-store';
 import { RetryQueue } from '@/lib/storage';
 import { dateKey, msUntilNextDay } from '@/lib/time';
+import { captionAt, parsePrompts } from '@/lib/caption';
 import { defaultSettings, loadSettings, type Settings } from '@/lib/settings';
 import {
   playWoodFish,
@@ -30,12 +31,8 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : '操作失败';
 }
 
-function nextCaptionText(counter: Counter, today: number): string {
-  let prompts: string[] = [];
-  try { prompts = JSON.parse(counter.prompts || '[]') as string[]; } catch { prompts = []; }
-  const list = prompts.filter((text) => text.trim());
-  if (list.length) return list[Math.abs(today) % list.length];
-  return counter.caption || counter.name;
+function nextCaptionText(counter: Counter, beat: number): string {
+  return captionAt(parsePrompts(counter.prompts ?? ''), counter.caption || counter.name, beat);
 }
 
 export function useChant() {
