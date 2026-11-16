@@ -15,7 +15,7 @@ export function Nav() {
   const pathname = usePathname();
   const active = (href: string) => {
     if (href === '/') return pathname === '/';
-    if (href === '/practices') return pathname === '/practices' || pathname === '/practice-collections' || pathname.startsWith('/counter/');
+    if (href === '/practices') return pathname === '/practices' || pathname.startsWith('/counter/');
     if (href === '/discover') return pathname.startsWith('/discover');
     return pathname === href;
   };

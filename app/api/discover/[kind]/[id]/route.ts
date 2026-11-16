@@ -8,7 +8,7 @@ type Context = { params: Promise<{ kind: string; id: string }> };
 
 export async function GET(req: NextRequest, context: Context) {
   const { kind, id } = await context.params;
-  if (kind !== 'practices' && kind !== 'collections') return jsonError('内容不存在', 404);
-  try { return NextResponse.json(await discoverContent(getEnv().DB, kind, id, await practiceOwner(req))); }
+  if (kind !== 'practices') return jsonError('内容不存在', 404);
+  try { return NextResponse.json(await discoverContent(getEnv().DB, id, await practiceOwner(req))); }
   catch (error) { return practiceResponse(error); }
 }

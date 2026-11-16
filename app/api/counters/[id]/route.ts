@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     const { DB } = getEnv();
     const existing = await ownedCounter(DB, id);
     if (!existing) return jsonError('计数器不存在', 404);
-    const previous = await ownedRow(DB, 'practices', id, OWNER_ID);
+    const previous = await ownedRow(DB, id, OWNER_ID);
 
     const sets: string[] = [];
     const vals: unknown[] = [];
@@ -64,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     }
     await atomic(DB, statements);
     if (textChanged && (previous.approved_snapshot || previous.visibility === 'pending')) {
-      await reviewContent(DB, 'practices', id, OWNER_ID);
+      await reviewContent(DB, id, OWNER_ID);
     }
 
     const counter = await ownedCounter(DB, id);
@@ -74,4 +74,4 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 }
 
-export const DELETE = detailHandlers('practices').DELETE;
+export const DELETE = detailHandlers.DELETE;

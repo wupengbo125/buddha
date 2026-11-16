@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ulid } from 'ulid';
 import type { D1Database, D1PreparedStatement, R2BucketLike } from './db';
-import type { Practice, Collection, PracticeVisibility, PracticeReview } from './practice-types';
+import type { Practice, PracticeVisibility, PracticeReview } from './practice-types';
 import { PracticeError } from './practice-http';
 import { interactionState } from './practice-interactions';
 
@@ -17,9 +17,10 @@ export const practiceInput = z.object({
   minSeconds: z.number().int().min(1).max(36000).default(300),
 });
 
-export type ContentKind = 'practices' | 'collections';
-export type Content = Practice | Collection;
-export const contentTable = (kind: ContentKind) => kind === 'practices' ? 'practices' : 'practice_collections';
+// 只剩发愿一种内容，但数据库里的 kind 列（reviews / likes / favorites）仍写 'practices'。
+export type ContentKind = 'practices';
+export type Content = Practice;
+export const contentTable = () => 'practices';
 export interface ContentRow {
   id: string;
   owner_id: string;
@@ -35,7 +36,7 @@ export interface ContentRow {
   approved_snapshot: string | null;
   published_at: string | null;
 }
-type PracticeRow = ContentRow & { prompts: string; target: number; target_kind?: string; target_seconds?: number; idle_seconds?: number; min_seconds?: number; round_done?: number; item_id?: string; personal_total?: number; today_total?: number; };
+type PracticeRow = ContentRow & { prompts: string; target: number; target_kind?: string; target_seconds?: number; idle_seconds?: number; min_seconds?: number; round_done?: number; personal_total?: number; today_total?: number; };
 const personalTotalSql = 'COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
 const todayTotalSql = 'COALESCE((SELECT CASE WHEN today_date = ? THEN today ELSE 0 END FROM counters WHERE id = practices.id), 0) AS today_total';
 
@@ -66,35 +67,23 @@ export function practiceFromRow(row: PracticeRow): Practice {
     targetSeconds: row.target_seconds ?? 0, idleSeconds: row.idle_seconds ?? 10,
     minSeconds: row.min_seconds ?? 300,
     roundDone: Boolean(row.round_done),
-    ...(row.item_id ? { item_id: row.item_id } : {}), personal_total: row.personal_total ?? 0,
+    personal_total: row.personal_total ?? 0,
     today_total: row.today_total ?? 0,
   };
 }
 
-export async function ownedRow(db: D1Database, kind: ContentKind, id: string, owner: string): Promise<ContentRow> {
-  const personal = kind === 'practices' ? `, ${personalTotalSql}` : '';
-  const row = await db.prepare(`SELECT *${personal} FROM ${contentTable(kind)} WHERE id = ? AND owner_id = ?`).bind(id, owner).first<ContentRow>();
+export async function ownedRow(db: D1Database, id: string, owner: string): Promise<ContentRow> {
+  const row = await db.prepare(`SELECT *, ${personalTotalSql} FROM practices WHERE id = ? AND owner_id = ?`).bind(id, owner).first<ContentRow>();
   if (!row) throw new PracticeError('内容不存在', 404);
   return row;
 }
 
-export async function ownedContent(db: D1Database, kind: ContentKind, id: string, owner: string, date = ''): Promise<Content> {
-  const row = await ownedRow(db, kind, id, owner);
-  const reviews = (await db.prepare('SELECT id, revision, status, reason FROM practice_reviews WHERE kind = ? AND content_id = ? AND owner_id = ? ORDER BY created_at, id').bind(kind, id, owner).all<PracticeReview>()).results ?? [];
-  const interactions = await interactionState(db, kind, id, owner);
-  if (kind === 'practices') return { ...practiceFromRow(row as PracticeRow), ...interactions, reviews };
-  const result = await db.prepare(`SELECT practices.*, i.id AS item_id, ${personalTotalSql}, ${todayTotalSql} FROM practice_collection_items i JOIN practices ON practices.id = i.practice_id WHERE i.collection_id = ? ORDER BY i.position`).bind(date, id).all<PracticeRow>();
-  const items = (result.results ?? []).map(practiceFromRow);
-  const saved = await db.prepare('SELECT r.id, i.target, COALESCE(c.total, 0) AS total FROM practice_runs r JOIN practice_run_items i ON i.run_id = r.id LEFT JOIN counters c ON c.id = i.practice_id AND c.device_id = r.owner_id WHERE r.owner_id = ? AND r.collection_id = ? AND r.is_current = 1 ORDER BY i.item_index')
-    .bind(owner, id).all<{ id: string; target: number; total: number }>();
-  const savedItems = saved.results ?? [];
-  const counts = savedItems.map((item) => Math.min(item.total, item.target));
-  const nextIndex = savedItems.findIndex((item) => item.total < item.target);
-  const progress = savedItems.length ? {
-    id: savedItems[0].id, index: nextIndex < 0 ? savedItems.length - 1 : nextIndex, completed: nextIndex < 0,
-    counts, total: counts.reduce((total, count) => total + count, 0),
-  } : null;
-  return { ...common(row), ...interactions, items, total_target: items.reduce((total, item) => total + item.target, 0), reviews, progress };
+export async function ownedContent(db: D1Database, id: string, owner: string, date = ''): Promise<Practice> {
+  const row = await ownedRow(db, id, owner);
+  const reviews = (await db.prepare('SELECT id, revision, status, reason FROM practice_reviews WHERE kind = ? AND content_id = ? AND owner_id = ? ORDER BY created_at, id').bind('practices', id, owner).all<PracticeReview>()).results ?? [];
+  const interactions = await interactionState(db, 'practices', id, owner);
+  void date;
+  return { ...practiceFromRow(row as PracticeRow), ...interactions, reviews };
 }
 
 export async function listPractices(db: D1Database, owner: string, date: string): Promise<Practice[]> {
@@ -112,98 +101,36 @@ export async function createPractice(db: D1Database, owner: string, body: unknow
   return practiceFromRow(row!);
 }
 
-export const collectionInput = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(2000).default(''),
-  practiceIds: z.array(z.string().min(1)).max(500),
-});
-
-async function itemStatements(db: D1Database, owner: string, id: string, ids: string[]) {
-  const distinct = [...new Set(ids)];
-  const found = await db.prepare('SELECT COUNT(*) AS count FROM practices WHERE owner_id = ? AND id IN (SELECT value FROM json_each(?))').bind(owner, JSON.stringify(distinct)).first<{ count: number }>();
-  if (found!.count !== distinct.length) throw new PracticeError('内容不存在', 404);
-  const items = ids.map((practiceId, position) => ({ id: ulid(), practiceId, position }));
-  return [db.prepare("INSERT INTO practice_collection_items (id, collection_id, practice_id, position) SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.practiceId'), json_extract(value, '$.position') FROM json_each(?)").bind(id, JSON.stringify(items))];
+export async function editContent(db: D1Database, id: string, owner: string, body: unknown): Promise<Practice> {
+  await ownedRow(db, id, owner);
+  const current = await ownedContent(db, id, owner);
+  const patch = practiceInput.partial().parse(body);
+  const input = practiceInput.parse({ ...current, ...patch });
+  await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, target_kind = ?, target_seconds = ?, idle_seconds = ?, min_seconds = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
+    .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, input.minSeconds, new Date().toISOString(), id, owner).run();
+  return ownedContent(db, id, owner);
 }
 
-export async function listCollections(db: D1Database, owner: string, date: string): Promise<Collection[]> {
-  const rows = await db.prepare('SELECT id FROM practice_collections WHERE owner_id = ? ORDER BY created_at, id').bind(owner).all<{ id: string }>();
-  return Promise.all((rows.results ?? []).map(async (row) => await ownedContent(db, 'collections', row.id, owner, date) as Collection));
+export function withdrawalStatements(db: D1Database, id: string): D1PreparedStatement[] {
+  return [db.prepare("UPDATE practices SET visibility = 'private', approved_snapshot = NULL, published_at = NULL, review_id = NULL, revision = revision + 1, publication_epoch = publication_epoch + 1 WHERE id = ?").bind(id)];
 }
 
-export async function createCollection(db: D1Database, owner: string, body: unknown): Promise<Collection> {
-  const input = collectionInput.parse(body);
-  const id = ulid();
-  const now = new Date().toISOString();
-  const items = await itemStatements(db, owner, id, input.practiceIds);
-  await atomic(db, [db.prepare('INSERT INTO practice_collections (id, owner_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, owner, input.name, input.description, now, now), ...items]);
-  return await ownedContent(db, 'collections', id, owner) as Collection;
+export async function withdrawContent(db: D1Database, id: string, owner: string): Promise<Practice> {
+  await ownedRow(db, id, owner);
+  await atomic(db, withdrawalStatements(db, id));
+  return ownedContent(db, id, owner);
 }
 
-export async function editContent(db: D1Database, kind: ContentKind, id: string, owner: string, body: unknown): Promise<Content> {
-  const row = await ownedRow(db, kind, id, owner);
-  const current = await ownedContent(db, kind, id, owner);
-  const now = new Date().toISOString();
-  if (kind === 'practices') {
-    const patch = practiceInput.partial().parse(body);
-    const input = practiceInput.parse({ ...current, ...patch });
-    await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, target_kind = ?, target_seconds = ?, idle_seconds = ?, min_seconds = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
-      .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, input.minSeconds, now, id, owner).run();
-  } else {
-    const patch = collectionInput.partial().parse(body);
-    const statements = [db.prepare("UPDATE practice_collections SET name = ?, description = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?").bind(patch.name ?? row.name, patch.description ?? row.description, now, id, owner)];
-    if (patch.practiceIds) {
-      const items = await itemStatements(db, owner, id, patch.practiceIds);
-      statements.push(db.prepare('DELETE FROM practice_collection_items WHERE collection_id = ?').bind(id), ...items);
-    }
-    await atomic(db, statements);
-  }
-  return ownedContent(db, kind, id, owner);
-}
-
-export function withdrawalStatements(db: D1Database, kind: ContentKind, id: string): D1PreparedStatement[] {
-  const statements = [db.prepare(`UPDATE ${contentTable(kind)} SET visibility = 'private', approved_snapshot = NULL, published_at = NULL, review_id = NULL, revision = revision + 1, publication_epoch = publication_epoch + 1 WHERE id = ?`).bind(id)];
-  if (kind === 'practices') statements.push(db.prepare("UPDATE practice_collections SET visibility = 'private', approved_snapshot = NULL, published_at = NULL, review_id = NULL, revision = revision + 1, publication_epoch = publication_epoch + 1 WHERE approved_snapshot IS NOT NULL AND id IN (SELECT collection_id FROM practice_public_dependencies WHERE practice_id = ?)").bind(id));
-  return statements;
-}
-
-export async function withdrawContent(db: D1Database, kind: ContentKind, id: string, owner: string): Promise<Content> {
-  await ownedRow(db, kind, id, owner);
-  await atomic(db, withdrawalStatements(db, kind, id));
-  return ownedContent(db, kind, id, owner);
-}
-
-export async function deleteContent(db: D1Database, kind: ContentKind, id: string, owner: string, images: R2BucketLike): Promise<void> {
-  await ownedRow(db, kind, id, owner);
-  if (kind === 'practices') {
-    const reference = await db.prepare('SELECT id FROM practice_collection_items WHERE practice_id = ? LIMIT 1').bind(id).first();
-    if (reference) throw new PracticeError('请先从发愿集中移除该发愿', 409);
-  }
-  const imageRows = kind === 'practices'
-    ? (await db.prepare('SELECT r2_key FROM images WHERE counter_id = ?').bind(id).all<{ r2_key: string }>()).results ?? []
-    : [];
-  const statements = withdrawalStatements(db, kind, id);
+export async function deleteContent(db: D1Database, id: string, owner: string, images: R2BucketLike): Promise<void> {
+  await ownedRow(db, id, owner);
+  const imageRows = (await db.prepare('SELECT r2_key FROM images WHERE counter_id = ?').bind(id).all<{ r2_key: string }>()).results ?? [];
+  const statements = withdrawalStatements(db, id);
   statements.push(
-    db.prepare('DELETE FROM practice_reviews WHERE kind = ? AND content_id = ?').bind(kind, id),
-    db.prepare('DELETE FROM practice_likes WHERE kind = ? AND content_id = ?').bind(kind, id),
-    db.prepare('DELETE FROM practice_favorites WHERE kind = ? AND content_id = ?').bind(kind, id),
+    db.prepare('DELETE FROM practice_reviews WHERE kind = ? AND content_id = ?').bind('practices', id),
+    db.prepare('DELETE FROM practice_likes WHERE kind = ? AND content_id = ?').bind('practices', id),
+    db.prepare('DELETE FROM practice_favorites WHERE kind = ? AND content_id = ?').bind('practices', id),
+    db.prepare('DELETE FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner),
   );
-  if (kind === 'practices') statements.push(
-    db.prepare('UPDATE practice_sessions SET run_id = NULL, revision = revision + 1 WHERE run_id IN (SELECT run_id FROM practice_run_items WHERE practice_id = ?)').bind(id),
-    db.prepare('DELETE FROM practice_events WHERE run_id IN (SELECT run_id FROM practice_run_items WHERE practice_id = ?)').bind(id),
-    db.prepare('DELETE FROM practice_run_items WHERE run_id IN (SELECT run_id FROM practice_run_items WHERE practice_id = ?)').bind(id),
-    db.prepare("DELETE FROM practice_runs WHERE EXISTS (SELECT 1 FROM json_each(practice_runs.snapshot, '$.items') WHERE json_extract(value, '$.id') = ?)").bind(id),
-    db.prepare('DELETE FROM practice_public_dependencies WHERE practice_id = ?').bind(id),
-  );
-  if (kind === 'collections') statements.push(
-    db.prepare('UPDATE practice_sessions SET run_id = NULL, revision = revision + 1 WHERE owner_id = ? AND run_id IN (SELECT id FROM practice_runs WHERE collection_id = ? AND owner_id = ?)').bind(owner, id, owner),
-    db.prepare('DELETE FROM practice_events WHERE run_id IN (SELECT id FROM practice_runs WHERE collection_id = ? AND owner_id = ?)').bind(id, owner),
-    db.prepare('DELETE FROM practice_run_items WHERE run_id IN (SELECT id FROM practice_runs WHERE collection_id = ? AND owner_id = ?)').bind(id, owner),
-    db.prepare('DELETE FROM practice_runs WHERE collection_id = ? AND owner_id = ?').bind(id, owner),
-    db.prepare('DELETE FROM practice_collection_items WHERE collection_id = ?').bind(id),
-    db.prepare('DELETE FROM practice_public_dependencies WHERE collection_id = ?').bind(id),
-  );
-  statements.push(db.prepare(`DELETE FROM ${contentTable(kind)} WHERE id = ? AND owner_id = ?`).bind(id, owner));
   await atomic(db, statements);
   for (const image of imageRows) await images.delete(image.r2_key).catch(() => {});
 }

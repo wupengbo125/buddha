@@ -3,12 +3,12 @@ import { getEnv } from '@/lib/runtime';
 import { jsonError, readJson } from '@/lib/http';
 import { practiceOwner, practiceResponse } from '@/lib/practice-http';
 import { createPractice, listPractices } from '@/lib/practice-store';
-import { sessionDate } from '@/lib/practice-session';
+import { dateKey } from '@/lib/time';
 
 export async function GET(req: NextRequest) {
   const owner = await practiceOwner(req);
   if (!owner) return jsonError('未登录', 401);
-  try { return NextResponse.json(await listPractices(getEnv().DB, owner, sessionDate(req.nextUrl))); }
+  try { return NextResponse.json(await listPractices(getEnv().DB, owner, dateKey(new Date(), req.nextUrl.searchParams.get('timeZone') || 'Asia/Shanghai'))); }
   catch (error) { return practiceResponse(error); }
 }
 

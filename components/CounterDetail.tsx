@@ -106,7 +106,6 @@ export function CounterDetail({ id }: { id: string }) {
     setBusy(true);
     setError('');
     try {
-      await practiceRequest('/api/practice-session', 'POST', { action: 'pause' });
       router.push(`/?counter=${encodeURIComponent(id)}`);
     } catch (error) {
       setError(errorMessage(error));

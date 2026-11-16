@@ -6,14 +6,10 @@ import { Plus, Volume2, VolumeX } from 'lucide-react';
 import { createState } from '@/lib/counter-store';
 import { siteName, storageNamespace } from '@/lib/brand';
 import { loadSettings, saveSettings } from '@/lib/settings';
-import { sendPracticeTap, type PendingPracticeTap } from '@/lib/practice-sync';
-import { PendingQueue } from '@/lib/storage';
 import { Caption } from './Caption';
 import { WoodenFish } from './WoodenFish';
 import { useChant } from './useChant';
 import { useChantSession } from './useChantSession';
-import { PracticeChant } from './PracticeChant';
-import type { PracticeSessionState } from '@/lib/practice-types';
 
 // 时间模式统一按整分钟展示，不带冒号：本次 X 分，今日/累计 X 分（满 60 分进成 X 时 X 分）。
 function mins(seconds: number): string {
@@ -30,69 +26,6 @@ export function ChantClient() {
   const { counters, states, caption, loading, error, feedbackTap, refreshCounts } = useChant();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [practiceSession, setPracticeSession] = useState<PracticeSessionState | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [sessionError, setSessionError] = useState('');
-  const [syncError, setSyncError] = useState('');
-
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/practice-session?timeZone=${encodeURIComponent(loadSettings().timeZone)}`)
-      .then(async response => {
-        if (!response.ok) throw new Error('发愿进度暂时无法载入');
-        return response.json();
-      })
-      .then(result => { if (live) setPracticeSession(result as PracticeSessionState); })
-      .catch(failure => { if (live) setSessionError(failure.message); })
-      .finally(() => { if (live) setSessionLoading(false); });
-    return () => { live = false; };
-  }, []);
-
-  useEffect(() => {
-    if (sessionLoading || practiceSession?.active) return;
-    let active = true;
-    let sending = false;
-    let retry: ReturnType<typeof setTimeout>;
-    let queue: PendingQueue<PendingPracticeTap>;
-    try {
-      queue = new PendingQueue(window.localStorage, `${storageNamespace}:pending-practice-taps`);
-      queue.values();
-      if (queue.rejectedSize) setSyncError('部分敲击因发愿或轮次已删除而无法同步，记录已保留');
-    } catch {
-      setSyncError('无法读取待同步敲击，请检查浏览器存储设置');
-      return;
-    }
-    const sync = async () => {
-      if (sending || !active) return;
-      sending = true;
-      try {
-        while (active && queue.size) {
-          const event = queue.values()[0];
-          const { response, result } = await sendPracticeTap(queue, event, loadSettings().timeZone);
-          if (!response.ok) {
-            if (response.status === 410) {
-              setSyncError('部分敲击因发愿或轮次已删除而无法同步，记录已保留');
-              continue;
-            }
-            setSyncError(result.error || '发愿敲击尚未同步');
-            if (response.status >= 500) retry = setTimeout(sync, 1500);
-            return;
-          }
-          queue.remove(event.eventId);
-          if (active && result.active) { setPracticeSession(result); return; }
-        }
-        if (active) { setSyncError(queue.rejectedSize ? '部分敲击因发愿或轮次已删除而无法同步，记录已保留' : ''); await refreshCounts(); }
-      } catch {
-        if (active) { setSyncError('发愿敲击尚未同步'); retry = setTimeout(sync, 1500); }
-      } finally {
-        sending = false;
-      }
-    };
-    if (queue.size) void sync();
-    const resume = () => { if (!document.hidden) void sync(); };
-    document.addEventListener('visibilitychange', resume);
-    return () => { active = false; clearTimeout(retry); document.removeEventListener('visibilitychange', resume); };
-  }, [sessionLoading, practiceSession?.active?.id]);
 
   useEffect(() => {
     setSoundEnabled(loadSettings().soundEnabled);
@@ -181,7 +114,7 @@ export function ChantClient() {
       <header className="chant-header">
         <span className="chant-brand flex items-center gap-2">
           <img src="/wooden-fish.png" width={40} height={40} alt="" />
-          {practiceSession?.active && !practiceSession.active.completed ? (practiceSession.active.items[practiceSession.active.index]?.name || '') : (selected?.title || '')}
+          {selected?.title || ''}
         </span>
         <button type="button" className="icon-button" onClick={toggleSound}
           aria-label={soundEnabled ? '关闭全部音效' : '开启全局音效'}
@@ -190,9 +123,7 @@ export function ChantClient() {
         </button>
       </header>
 
-      {sessionLoading || loading ? <div className="empty-state" role="status">正在载入...</div> : sessionError ? (
-        <p className="error-message" role="alert">{sessionError}</p>
-      ) : practiceSession?.active ? <PracticeChant initial={practiceSession} onStateChange={setPracticeSession} /> : !selected ? (
+      {loading ? <div className="empty-state" role="status">正在载入...</div> : !selected ? (
         <div className="empty-state">
           <div className="fish-stage"><WoodenFish disabled onTap={() => undefined} /></div>
           <h1 className="page-title text-ink">从一个发愿开始</h1>
@@ -231,7 +162,6 @@ export function ChantClient() {
         </>
       )}
       {error && <p className="error-message" role="alert">{error}</p>}
-      {syncError && <p className="error-message" role="alert">{syncError}</p>}
     </main>
   );
 }
