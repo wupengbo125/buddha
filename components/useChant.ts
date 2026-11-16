@@ -13,13 +13,7 @@ import {
 } from '@/lib/counter-store';
 import { RetryQueue } from '@/lib/storage';
 import { dateKey, msUntilNextDay } from '@/lib/time';
-import {
-  defaultSettings,
-  effectiveCaptionMs,
-  loadCaptionOverrides,
-  loadSettings,
-  type Settings,
-} from '@/lib/settings';
+import { defaultSettings, loadSettings, type Settings } from '@/lib/settings';
 import {
   playWoodFish,
   prefersReducedMotion,
@@ -54,7 +48,6 @@ export function useChant() {
   const countersRef = useRef<Counter[]>([]);
   const statesRef = useRef<Record<string, CounterState>>({});
   const settingsRef = useRef<Settings>(defaultSettings());
-  const overridesRef = useRef<Record<string, number>>({});
   const retryRef = useRef(new RetryQueue());
   const storageReady = useRef(false);
   const inFlight = useRef(new Set<string>());
@@ -131,7 +124,6 @@ export function useChant() {
   useEffect(() => {
     const s = loadSettings();
     settingsRef.current = s;
-    overridesRef.current = loadCaptionOverrides();
     try {
       retryRef.current = new RetryQueue(window.localStorage, `${storageNamespace}:pending-taps`);
       retryRef.current.values();
@@ -178,7 +170,7 @@ export function useChant() {
     setCaption({
       // extra = 本地这轮还没上报的敲击数，保证弹幕按「每一下」轮播，而不是等整批上报后才换。
       text: nextCaptionText(counter, (statesRef.current[counter.id]?.today ?? 0) + extra),
-      durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
+      durationMs: settingsRef.current.captionMs,
       token: captionToken.current,
     });
     const globalOn = settingsRef.current.soundEnabled;
@@ -210,7 +202,7 @@ export function useChant() {
     captionToken.current += 1;
     setCaption({
       text: nextCaptionText(counter, statesRef.current[counter.id]?.today ?? 0),
-      durationMs: effectiveCaptionMs(overridesRef.current, counter.id, settingsRef.current.captionMs),
+      durationMs: settingsRef.current.captionMs,
       token: captionToken.current,
     });
 

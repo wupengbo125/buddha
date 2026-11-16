@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { CircleDot, SlidersHorizontal, BookOpen, Compass, Mountain } from 'lucide-react';
 
 const items = [
-  { href: '/', label: '念佛', icon: CircleDot },
+  { href: '/', label: '念诵', icon: CircleDot },
   { href: '/practices', label: '发愿', icon: BookOpen },
   { href: '/journey', label: '西游', icon: Mountain },
   { href: '/discover', label: '广场', icon: Compass },

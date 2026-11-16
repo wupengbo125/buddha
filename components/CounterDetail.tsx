@@ -6,15 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Check, ImagePlus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { practiceRequest } from './PracticeLibrary';
-import {
-  CAPTION_DEFAULT_MS,
-  CAPTION_MIN_MS,
-  CAPTION_MAX_MS,
-  clampCaptionMs,
-  loadCaptionOverrides,
-  loadSettings,
-  saveCaptionOverride,
-} from '@/lib/settings';
 import type { Counter, ImageView } from '@/lib/types';
 
 function errorMessage(e: unknown): string {
@@ -29,8 +20,6 @@ export function CounterDetail({ id }: { id: string }) {
   const [saved, setSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [images, setImages] = useState<ImageView[]>([]);
-  const [captionMsInput, setCaptionMsInput] = useState('');
-  const [globalMs, setGlobalMs] = useState(CAPTION_DEFAULT_MS);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -48,9 +37,6 @@ export function CounterDetail({ id }: { id: string }) {
         setName(found?.name ?? '');
         setCaptionText(found?.caption ?? '');
         setImages(imgs);
-        setGlobalMs(loadSettings().captionMs);
-        const override = loadCaptionOverrides()[id];
-        setCaptionMsInput(override !== undefined ? String(override) : '');
       } catch (e) {
         setError(errorMessage(e));
       } finally {
@@ -58,17 +44,6 @@ export function CounterDetail({ id }: { id: string }) {
       }
     })();
   }, [id]);
-
-  const saveCaptionDuration = () => {
-    if (captionMsInput.trim() === '') {
-      saveCaptionOverride(id, null);
-      setCaptionMsInput('');
-      return;
-    }
-    const clamped = clampCaptionMs(Number(captionMsInput));
-    saveCaptionOverride(id, clamped);
-    setCaptionMsInput(String(clamped));
-  };
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -79,7 +54,6 @@ export function CounterDetail({ id }: { id: string }) {
     try {
       const { counter: updated } = await api.updateCounter(id, { name: name.trim(), caption: captionText.trim() });
       setCounter(updated);
-      saveCaptionDuration();
       setSaved(true);
     } catch (error) {
       setError(errorMessage(error));
@@ -93,7 +67,6 @@ export function CounterDetail({ id }: { id: string }) {
     setError('');
     try {
       await api.deleteCounter(id);
-      saveCaptionOverride(id, null);
       router.push('/practices');
     } catch (error) {
       setError(errorMessage(error));
@@ -174,16 +147,6 @@ export function CounterDetail({ id }: { id: string }) {
             <input id="counter-name" className="field mb-6" value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} />
             <label className="field-label" htmlFor="counter-caption">弹幕</label>
             <input id="counter-caption" className="field mb-6" value={captionText} onChange={(event) => setCaptionText(event.target.value)} placeholder={counter.name} maxLength={200} />
-            <div className="section">
-              <label className="field-label" htmlFor="caption-mode">字幕时长</label>
-              <select id="caption-mode" className="field" value={captionMsInput === '' ? 'global' : 'custom'} onChange={(event) => setCaptionMsInput(event.target.value === 'global' ? '' : String(globalMs))}>
-                <option value="global">跟随全局 · {globalMs / 1000} 秒</option>
-                <option value="custom">自定义</option>
-              </select>
-              {captionMsInput !== '' && <label className="mt-4 flex items-center gap-3 text-sm text-muted">
-                <input aria-label="字幕时长（毫秒）" className="field" type="number" min={CAPTION_MIN_MS} max={CAPTION_MAX_MS} step={100} value={captionMsInput} onChange={(event) => setCaptionMsInput(event.target.value)} required />毫秒
-              </label>}
-            </div>
             <button className="primary-button w-full" type="submit" disabled={busy || !name.trim()}><Check size={18} />{busy ? '正在处理...' : '保存修改'}</button>
             {saved && <p className="mt-3 text-center text-sm text-accent" role="status">已保存</p>}
           </form>

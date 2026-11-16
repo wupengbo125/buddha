@@ -116,6 +116,14 @@ describe('practice API', () => {
     expect(copied).toMatchObject({ owner_id: 'friend', source_id: source.id, source_name: 'shared', personal_total: 0, visibility: 'private' });
   });
 
+  it('copies an own private practice without publishing it first', async () => {
+    const practices = await import('@/app/api/practices/route');
+    const detail = await import('@/app/api/practices/[id]/route');
+    const mine = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: '只给自己', prompts: ['p'], target: 108, targetKind: 'time', targetSeconds: 600, minSeconds: 300 })));
+    const copied = await readJson<Practice>(detail.POST(request(`practices/${mine.id}`, 'POST', { action: 'copy' }), context(mine.id)));
+    expect(copied).toMatchObject({ owner_id: 'owner', source_id: mine.id, name: '只给自己', targetKind: 'time', targetSeconds: 600, minSeconds: 300, personal_total: 0 });
+  });
+
   it('discovers approved content with likes and favorites, and hides withdrawn content', async () => {
     const practices = await import('@/app/api/practices/route');
     const detail = await import('@/app/api/practices/[id]/route');

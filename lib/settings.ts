@@ -49,37 +49,3 @@ export function saveSettings(settings: Settings): void {
     /* 忽略配额 / 隐私模式错误 */
   }
 }
-
-// 每个计数器可覆盖全局字幕时长；未设置则回退到全局设置
-const CAPTION_OVERRIDES_KEY = `${storageNamespace}:caption-overrides`;
-
-export function loadCaptionOverrides(): Record<string, number> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(CAPTION_OVERRIDES_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, number>;
-    if (!parsed || typeof parsed !== 'object') return {};
-    const result: Record<string, number> = {};
-    for (const [key, value] of Object.entries(parsed)) result[key] = clampCaptionMs(Number(value));
-    return result;
-  } catch {
-    return {};
-  }
-}
-
-export function saveCaptionOverride(counterId: string, ms: number | null): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const overrides = loadCaptionOverrides();
-    if (ms === null) delete overrides[counterId];
-    else overrides[counterId] = clampCaptionMs(ms);
-    window.localStorage.setItem(CAPTION_OVERRIDES_KEY, JSON.stringify(overrides));
-  } catch {
-    /* 忽略存储错误 */
-  }
-}
-
-export function effectiveCaptionMs(overrides: Record<string, number>, counterId: string, globalMs: number): number {
-  return overrides[counterId] ?? clampCaptionMs(globalMs);
-}

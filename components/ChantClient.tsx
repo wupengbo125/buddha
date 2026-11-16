@@ -48,6 +48,11 @@ export function ChantClient() {
   const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
   const baseToday = state?.today ?? 0;
   const baseTotal = state?.total ?? 0;
+  // 先本地加上、立刻显示，再慢慢传给服务端：上报成功刷新后清掉本地增量，观感无延迟。
+  const [pending, setPending] = useState({ today: 0, total: 0 });
+  const shownToday = baseToday + pending.today;
+  const shownTotal = baseTotal + pending.total;
+  useEffect(() => { setPending({ today: 0, total: 0 }); }, [selected?.id]);
   // 阈值与时长模式同一个参数：时长=最少坚持秒数，次数=最少坚持声数。
   const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
   const tapBatch = Math.max(1, selected?.min_seconds ?? 100);
@@ -59,24 +64,26 @@ export function ChantClient() {
 
   const reportMinutes = (minutes: number) => {
     if (!selected || minutes <= 0) return;
+    setPending((value) => ({ today: value.today + minutes * 60, total: value.total + minutes * 60 }));
     void fetch(`/api/counters/${selected.id}/minutes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event_id: `min-${selected.id}-${Date.now()}-${minutes}`, minutes, date: dateNow() }),
     })
-      .then((res) => { if (res.ok) void refreshCounts(); })
-      .catch(() => undefined);
+      .then((res) => (res.ok ? refreshCounts().then(() => setPending({ today: 0, total: 0 })) : setPending({ today: 0, total: 0 })))
+      .catch(() => setPending({ today: 0, total: 0 }));
   };
 
   const reportTaps = (taps: number) => {
     if (!selected || taps <= 0) return;
+    setPending((value) => ({ today: value.today + taps, total: value.total + taps }));
     void fetch(`/api/counters/${selected.id}/taps`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event_id: `taps-${selected.id}-${Date.now()}-${taps}`, delta: taps, date: dateNow() }),
     })
-      .then((res) => { if (res.ok) void refreshCounts(); })
-      .catch(() => undefined);
+      .then((res) => (res.ok ? refreshCounts().then(() => setPending({ today: 0, total: 0 })) : setPending({ today: 0, total: 0 })))
+      .catch(() => setPending({ today: 0, total: 0 }));
   };
 
   const chant = useChantSession({
@@ -144,20 +151,20 @@ export function ChantClient() {
               }} />
             </div>
             {isTime ? (
-              <div className={`count-row ${chant.paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${mins(sessionSeconds)}，今日 ${hm(baseToday)}，累计 ${hm(baseTotal)}`}>
+              <div className={`count-row ${chant.paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${mins(sessionSeconds)}，今日 ${hm(shownToday)}，累计 ${hm(shownTotal)}`}>
                 <span className="count-row-label">本次</span>
                 <span className="count-row-num count-row-today">{mins(sessionSeconds)}</span>
-                <span className="count-row-sub">今日 {hm(baseToday)} · 累计 {hm(baseTotal)}</span>
+                <span className="count-row-sub">今日 {hm(shownToday)} · 累计 {hm(shownTotal)}</span>
               </div>
             ) : (
-              <div className={`count-row ${chant.paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${chant.taps} 声，今日 ${state?.today ?? 0} 声，累计 ${state?.total ?? 0} 声`}>
+              <div className={`count-row ${chant.paused ? 'count-row-paused' : ''}`} aria-label={`本次 ${chant.taps} 声，今日 ${shownToday} 声，累计 ${shownTotal} 声`}>
                 <span className="count-row-label">本次</span>
                 <span className="count-row-num count-row-today">{chant.taps.toLocaleString()}</span>
-                <span className="count-row-sub">今日 {(state?.today ?? 0).toLocaleString()} · 累计 {(state?.total ?? 0).toLocaleString()} 声</span>
+                <span className="count-row-sub">今日 {shownToday.toLocaleString()} · 累计 {shownTotal.toLocaleString()} 声</span>
               </div>
             )}
-            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(baseTotal)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, (baseTotal / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
-            : !isTime && selected.target ? <div className="count-progress" aria-label={`累计 ${state?.total ?? 0} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, ((state?.total ?? 0) / selected.target) * 100)}%` }} /></div></div> : null}
+            {isTime && (selected.target_seconds ?? 0) > 0 ? <div className="count-progress" aria-label={`累计 ${hm(shownTotal)} / 目标 ${hm(selected.target_seconds ?? 0)}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, (shownTotal / (selected.target_seconds ?? 1)) * 100)}%` }} /></div></div>
+            : !isTime && selected.target ? <div className="count-progress" aria-label={`累计 ${shownTotal} / 目标 ${selected.target}`}><div className="count-progress-track"><i style={{ width: `${Math.min(100, (shownTotal / selected.target) * 100)}%` }} /></div></div> : null}
           </div>
         </>
       )}
