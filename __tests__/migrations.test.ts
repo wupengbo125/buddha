@@ -8,24 +8,22 @@ const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).so
 const schemaSql = files.map((f) => fs.readFileSync(path.join(migrationsDir, f), 'utf8')).join('\n');
 
 describe('迁移按序读取', () => {
-  it('多个迁移按文件名排序，0002 在 0001 之后', () => {
-    expect(files).toEqual(['0001_init.sql', '0002_add_sound.sql', '0003_practices.sql', '0004_unify_practices.sql', '0005_practice_counter_sync.sql', '0006_counter_dates.sql', '0007_unique_practice_counts.sql', '0008_time_mode.sql', '0009_penalty.sql', '0010_round_done.sql', '0011_batch_taps.sql', '0012_count_min.sql', '0013_wishlists.sql']);
+  it('线上收敛为单一终态 0001，后续迁移按文件名追加', () => {
+    expect(files).toEqual(['0001_init.sql', '0002_reordered_practice_runs.sql', '0003_wishlists.sql', '0004_rounds_done.sql']);
   });
 
-  it('0001 不含 sound_enabled（已应用的迁移禁止改动）', () => {
-    expect(fs.readFileSync(path.join(migrationsDir, '0001_init.sql'), 'utf8')).not.toContain('sound_enabled');
+  it('0001 是完整终态，直接含 sound_enabled 与 practices 体系', () => {
+    const s = fs.readFileSync(path.join(migrationsDir, '0001_init.sql'), 'utf8');
+    expect(s).toContain('sound_enabled INTEGER NOT NULL DEFAULT 1');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS practices');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS counters');
   });
 
-  it('0002 用 ALTER TABLE 新增 sound_enabled，默认 1', () => {
-    const s = fs.readFileSync(path.join(migrationsDir, '0002_add_sound.sql'), 'utf8');
-    expect(s).toContain('ALTER TABLE counters ADD COLUMN sound_enabled');
-    expect(s).toContain('NOT NULL DEFAULT 1');
-  });
-
-  it('拼接顺序：CREATE TABLE 出现在 ALTER TABLE 之前', () => {
-    expect(schemaSql.indexOf('CREATE TABLE IF NOT EXISTS counters')).toBeLessThan(
-      schemaSql.indexOf('ALTER TABLE counters ADD COLUMN sound_enabled'),
-    );
+  it('0004 建 rounds_done 基准并重建 counter_tap_count', () => {
+    const s = fs.readFileSync(path.join(migrationsDir, '0004_rounds_done.sql'), 'utf8');
+    expect(s).toContain('ALTER TABLE practices ADD COLUMN rounds_done');
+    expect(s).toContain('DROP TRIGGER IF EXISTS counter_tap_count');
+    expect(s).toContain('(rounds_done + 1)');
   });
 
   it('lib/local.ts 的 readSchemaSql 用 readdirSync + sort 读全部迁移', () => {
@@ -36,54 +34,54 @@ describe('迁移按序读取', () => {
   });
 });
 
-describe('应用全部迁移后内存 D1 含 sound_enabled（映射 lib/local.ts 本地兜底）', () => {
-  it('unifies existing recitations and practices while retaining counts, images and sound', () => {
-    const require = createRequire(import.meta.url);
-    const { DatabaseSync } = require('node:sqlite');
-    const db = new DatabaseSync(':memory:');
-    try {
-      db.exec(files.filter((file) => file < '0004').map((file) => fs.readFileSync(path.join(migrationsDir, file), 'utf8')).join('\n'));
-      db.prepare("INSERT INTO counters(id, device_id, name, caption, total, today, today_date, sound_enabled) VALUES ('old', 'owner', '阿弥陀佛', '心静', 123, 7, '2026-11-13', 0)").run();
-      db.prepare("INSERT INTO images(id, counter_id, device_id, r2_key) VALUES ('image', 'old', 'owner', 'old/photo.png')").run();
-      db.exec(fs.readFileSync(path.join(migrationsDir, '0004_unify_practices.sql'), 'utf8'));
-      expect({ ...db.prepare("SELECT id, owner_id, name, recitation, prompts, visibility FROM practices WHERE id = 'old'").get() }).toEqual({
-        id: 'old', owner_id: 'owner', name: '阿弥陀佛', recitation: '阿弥陀佛', prompts: '["心静"]', visibility: 'private',
-      });
-      expect({ ...db.prepare("SELECT total, today, sound_enabled FROM counters WHERE id = 'old'").get() }).toEqual({ total: 123, today: 7, sound_enabled: 0 });
-      expect(db.prepare("SELECT counter_id FROM images WHERE id = 'image'").get().counter_id).toBe('old');
-    } finally { db.close(); }
-  });
-
-  it('upgrades an existing database without changing legacy personal counts or publishing content', () => {
+describe('应用全部迁移后的内存 D1', () => {
+  it('sqlite 执行全部迁移后 counters 有 sound_enabled 默认 1、practices 有 rounds_done 默认 0', () => {
     const require = createRequire(import.meta.url);
     const { DatabaseSync } = require('node:sqlite') as { DatabaseSync: any };
     const db = new DatabaseSync(':memory:');
     try {
-      db.exec(files.slice(0, 2).map((file) => fs.readFileSync(path.join(migrationsDir, file), 'utf8')).join('\n'));
-      db.prepare("INSERT INTO counters(id, device_id, name, caption, total, today, today_date, sound_enabled) VALUES ('old', 'owner', 'existing', 'caption', 123, 7, '2026-11-13', 0)").run();
-      db.exec(fs.readFileSync(path.join(migrationsDir, '0003_practices.sql'), 'utf8'));
-      expect({ ...db.prepare("SELECT device_id, name, caption, total, today, today_date, sound_enabled FROM counters WHERE id = 'old'").get() }).toEqual({
-        device_id: 'owner', name: 'existing', caption: 'caption', total: 123, today: 7, today_date: '2026-11-13', sound_enabled: 0,
-      });
-      expect(db.prepare('SELECT COUNT(*) AS count FROM practices').get().count).toBe(0);
-    } finally { db.close(); }
-  });
+      db.exec(schemaSql);
+      const counterCols = db.prepare("PRAGMA table_info('counters')").all() as { name: string }[];
+      expect(counterCols.map((c) => c.name)).toContain('sound_enabled');
+      const practiceCols = db.prepare("PRAGMA table_info('practices')").all() as { name: string }[];
+      expect(practiceCols.map((c) => c.name)).toContain('rounds_done');
 
-  it('sqlite 执行拼接 SQL 后，counters 有 sound_enabled 且默认 1', () => {
-    const require = createRequire(import.meta.url);
-    const { DatabaseSync } = require('node:sqlite') as { DatabaseSync: any };
-    const db = new DatabaseSync(':memory:');
-    try {
-      db.exec(schemaSql); // 应用 0001 + 0002
-      const cols = db.prepare("PRAGMA table_info('counters')").all() as { name: string }[];
-      expect(cols.map((c) => c.name)).toContain('sound_enabled');
-
-      // 新建不显式给 sound_enabled 时，默认值应为 1
       db.prepare("INSERT INTO counters (id, device_id, name) VALUES ('x', 'owner', 'n')").run();
-      const row = db.prepare('SELECT sound_enabled FROM counters WHERE id = ?').get('x') as {
-        sound_enabled: number;
-      };
-      expect(row.sound_enabled).toBe(1);
+      expect((db.prepare('SELECT sound_enabled FROM counters WHERE id = ?').get('x') as { sound_enabled: number }).sound_enabled).toBe(1);
+      db.prepare("INSERT INTO practices (id, owner_id, name, prompts, target, created_at, updated_at) VALUES ('p', 'owner', 'n', '[]', 108, '2026-11-13', '2026-11-13')").run();
+      expect((db.prepare('SELECT rounds_done FROM practices WHERE id = ?').get('p') as { rounds_done: number }).rounds_done).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('practices 新建自动创建对应 counter，计数触发器保留累计并更新 round_done', () => {
+    const require = createRequire(import.meta.url);
+    const { DatabaseSync } = require('node:sqlite') as { DatabaseSync: any };
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(schemaSql);
+      db.prepare("INSERT INTO practices (id, owner_id, name, prompts, target, created_at, updated_at) VALUES ('p', 'owner', 'n', '[]', 2, '2026-11-13', '2026-11-13')").run();
+      // practice_recitation_insert 触发器建出同 id 的 counter
+      expect(db.prepare("SELECT id FROM counters WHERE id = 'p'").get()).toMatchObject({ id: 'p' });
+      // 敲 2 声达标：total=2，round_done=1（rounds_done=0 → (0+1)*2=2）
+      db.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date) VALUES ('e1', 'p', 'owner', 'ev1', 2, '2026-11-13')").run();
+      expect(db.prepare("SELECT total, today FROM counters WHERE id = 'p'").get()).toMatchObject({ total: 2, today: 2 });
+      expect(db.prepare("SELECT round_done FROM practices WHERE id = 'p'").get()).toMatchObject({ round_done: 1 });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('wishlists 表随迁移建立，引用 practices', () => {
+    const req = createRequire(import.meta.url);
+    const sqlite = req('node:sqlite') as { DatabaseSync: any };
+    const db = new sqlite.DatabaseSync(':memory:');
+    try {
+      db.exec(schemaSql);
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[];
+      expect(tables.map((t) => t.name)).toContain('wishlists');
+      expect(tables.map((t) => t.name)).toContain('wishlist_items');
     } finally {
       db.close();
     }

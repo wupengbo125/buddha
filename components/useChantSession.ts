@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 export type ChantSession = {
   /** 敲击：判超时清零 / 续上，返回本次是否重开。 */
   tap: () => void;
-  /** 次数模式：本次已敲的声数（时间模式不用，看调用方的秒表）。 */
+  /** 本次已敲的声数（两种模式都记；次数模式还用于计量，时间模式只用于弹幕轮动）。 */
   taps: number;
   /** true = 停表（超时或作废后），渲染置灰。 */
   paused: boolean;
@@ -73,10 +73,9 @@ export function useChantSession(options: {
     } else {
       ref.current.lastTapAt = now;
     }
-    if (counted) {
-      ref.current.taps += 1;
-      evaluate(0);
-    }
+    // 两种模式都记敲击数：次数模式用于计量/上报，时长模式只用于弹幕按「每一下」轮动。
+    ref.current.taps += 1;
+    if (counted) evaluate(0);
     bump((value) => value + 1);
     // 到点没有敲击：停表、本次清零。
     timerRef.current = setTimeout(stop, idleSeconds * 1000);

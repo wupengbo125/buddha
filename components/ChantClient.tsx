@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Volume2, VolumeX } from 'lucide-react';
 import { createState } from '@/lib/counter-store';
-import { siteName, storageNamespace } from '@/lib/brand';
+import { storageNamespace } from '@/lib/brand';
 import { loadSettings, saveSettings } from '@/lib/settings';
+import { dateKey } from '@/lib/time';
 import { Caption } from './Caption';
 import { WoodenFish } from './WoodenFish';
 import { ChantCounts } from './ChantCounts';
-import { reportCounterMinutes, reportCounterTaps } from '@/lib/chant-report';
+import { ChantReporter, type PendingChantReport } from '@/lib/chant-report';
 import { useChant } from './useChant';
 import { useChantSession } from './useChantSession';
 
@@ -45,35 +46,92 @@ export function ChantClient() {
   const state = selected ? states[selected.id] ?? createState('') : null;
 
   // 时长模式：本次是真实流动的时间；敲击只判断超时是否清零、满一分钟是否上报；今日/累计只显示已上报的整分钟。
-  // 次数模式：同一套会话骨架，攒满 100 声上报一批，零头作废。
+  // 次数模式：同一套会话骨架，攒满「最少坚持」声上报一批，零头作废。
   const isTime = selected?.target_kind === 'time';
   const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
   const baseToday = state?.today ?? 0;
   const baseTotal = state?.total ?? 0;
-  // 先本地加上、立刻显示，再慢慢传给服务端：上报成功刷新后清掉本地增量，观感无延迟。
-  const [pending, setPending] = useState({ today: 0, total: 0 });
-  const shownToday = baseToday + pending.today;
-  const shownTotal = baseTotal + pending.total;
-  useEffect(() => { setPending({ today: 0, total: 0 }); }, [selected?.id]);
+  // 待上报批次按 eventId 聚合（声/秒），先本地加上立刻显示；只有服务端确认后才清掉对应增量，失败重试期间一直显示。
+  const [pending, setPending] = useState<Record<string, PendingChantReport>>({});
+  const reporterRef = useRef<ChantReporter | null>(null);
+  const [syncError, setSyncError] = useState('');
+  const pendingFor = (counterId: string) => Object.values(pending)
+    .filter((report) => report.counterId === counterId)
+    .reduce((sum, report) => sum + report.amount, 0);
+  const shownToday = baseToday + pendingFor(selected?.id ?? '');
+  const shownTotal = baseTotal + pendingFor(selected?.id ?? '');
+
+  // 可靠上报：待报队列持久化 + 失败按同一 event_id 重试 + 关闭/隐藏页面拦截未同步数据。
+  useEffect(() => {
+    let reporter: ChantReporter;
+    try {
+      reporter = new ChantReporter(window.localStorage, `${storageNamespace}:pending-chant-reports`);
+      reporterRef.current = reporter;
+    } catch {
+      setSyncError('无法读取待同步记录，请检查浏览器存储设置');
+      return;
+    }
+    const drop = (eventId: string) => setPending((value) => {
+      if (!(eventId in value)) return value;
+      const next = { ...value };
+      delete next[eventId];
+      return next;
+    });
+    const unsubscribe = reporter.subscribe((event) => {
+      if (event.type === 'confirmed') {
+        drop(event.report.eventId);
+        void refreshCounts();
+        setSyncError('');
+      } else if (event.type === 'rejected') {
+        drop(event.report.eventId);
+        setSyncError('部分记录因无效被丢弃');
+      } else if (event.type === 'retry') {
+        setSyncError('部分念诵尚未同步，正在重试…');
+      } else {
+        setSyncError('');
+      }
+    });
+    void reporter.flush();
+    const leaving = (event: BeforeUnloadEvent) => {
+      if (reporter.size) { event.preventDefault(); event.returnValue = ''; }
+    };
+    const resume = () => { if (document.visibilityState === 'visible') void reporter.flush(); };
+    window.addEventListener('beforeunload', leaving);
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      unsubscribe();
+      reporter.stop();
+      reporterRef.current = null;
+      window.removeEventListener('beforeunload', leaving);
+      document.removeEventListener('visibilitychange', resume);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 阈值与时长模式同一个参数：时长=最少坚持秒数，次数=最少坚持声数。
   const minSeconds = Math.max(60, selected?.min_seconds ?? 300);
   const tapBatch = Math.max(1, selected?.min_seconds ?? 100);
 
   const timeZone = loadSettings().timeZone;
+  const enqueue = (counterId: string, path: 'minutes' | 'taps', amount: number) => {
+    const reportId = `${path}-${counterId}-${Date.now()}-${amount}`;
+    const report: PendingChantReport = {
+      eventId: reportId,
+      counterId,
+      path,
+      amount,
+      date: dateKey(new Date(), timeZone),
+    };
+    setPending((value) => ({ ...value, [reportId]: report }));
+    reporterRef.current?.add(report);
+  };
   const reportMinutes = (minutes: number) => {
     if (!selected || minutes <= 0) return;
-    setPending((value) => ({ today: value.today + minutes * 60, total: value.total + minutes * 60 }));
-    void reportCounterMinutes(selected.id, minutes, timeZone)
-      .then((outcome) => (outcome.ok ? refreshCounts().then(() => setPending({ today: 0, total: 0 })) : setPending({ today: 0, total: 0 })))
-      .catch(() => setPending({ today: 0, total: 0 }));
+    enqueue(selected.id, 'minutes', minutes);
   };
-
   const reportTaps = (taps: number) => {
     if (!selected || taps <= 0) return;
-    setPending((value) => ({ today: value.today + taps, total: value.total + taps }));
-    void reportCounterTaps(selected.id, taps, timeZone)
-      .then((outcome) => (outcome.ok ? refreshCounts().then(() => setPending({ today: 0, total: 0 })) : setPending({ today: 0, total: 0 })))
-      .catch(() => setPending({ today: 0, total: 0 }));
+    enqueue(selected.id, 'taps', taps);
   };
 
   const chant = useChantSession({
@@ -136,7 +194,7 @@ export function ChantClient() {
               <WoodenFish onTap={() => {
                 // 时长模式只走本地计时与分钟上报，不发 /taps；但音效弹幕照常。
                 chant.tap();
-                feedbackTap(selected, isTime ? 0 : chant.taps);
+                feedbackTap(selected, chant.taps);
                 chant.evaluate(chant.seconds());
               }} />
             </div>
@@ -161,7 +219,7 @@ export function ChantClient() {
           </div>
         </>
       )}
-      {error && <p className="error-message" role="alert">{error}</p>}
+      {(error || syncError) && <p className="error-message" role="alert">{error || syncError}</p>}
     </main>
   );
 }

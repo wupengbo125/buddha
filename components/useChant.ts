@@ -32,7 +32,7 @@ function errorMessage(e: unknown): string {
 }
 
 function nextCaptionText(counter: Counter, beat: number): string {
-  return captionAt(parsePrompts(counter.prompts ?? ''), counter.caption || counter.name, beat);
+  return captionAt(parsePrompts(counter.prompts ?? ''), counter.caption || counter.name, beat - 1);
 }
 
 export function useChant() {
@@ -160,13 +160,13 @@ export function useChant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 只做音效 / 震动 / 弹幕，不改计数、不发 /taps：时长模式敲击时用。
+  // 只做音效 / 震动 / 弹幕，不改计数、不发 /taps：敲击时调它。
   function feedbackTap(counter: Counter, extra = 0) {
     settingsRef.current = loadSettings();
     captionToken.current += 1;
     setCaption({
-      // extra = 本地这轮还没上报的敲击数，保证弹幕按「每一下」轮播，而不是等整批上报后才换。
-      text: nextCaptionText(counter, (statesRef.current[counter.id]?.today ?? 0) + extra),
+      // extra = 本次已敲的声数（含刚这一下）：弹幕只在敲击时轮动，与上报/今日累计无关。
+      text: nextCaptionText(counter, extra),
       durationMs: settingsRef.current.captionMs,
       token: captionToken.current,
     });

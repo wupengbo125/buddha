@@ -104,6 +104,12 @@ describe('practice API', () => {
     sqlite.prepare('UPDATE practices SET round_done = 1 WHERE id = ?').run(practice.id);
     await detail.POST(request(`practices/${practice.id}`, 'POST', { action: 'restart' }), context(practice.id));
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ roundDone: false, personal_total: 2 }]);
+
+    // 再念一次后需重新念满一轮（target=2）：total 从 2 到 3 仍未完成，到 4 才完成。
+    await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'round-3', delta: 1, date: '2026-11-13' }), context(practice.id));
+    expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ roundDone: false, personal_total: 3 }]);
+    await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'round-4', delta: 1, date: '2026-11-13' }), context(practice.id));
+    expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ roundDone: true, personal_total: 4 }]);
   });
 
   it('copies a public practice privately with provenance', async () => {

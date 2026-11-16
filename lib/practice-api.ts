@@ -44,13 +44,15 @@ export const detailHandlers = {
         if (!db.batch) throw new Error('D1 batch is required');
         await db.batch([
           db.prepare('UPDATE counters SET total = 0, today = 0, updated_at = ? WHERE id = ?').bind(now, id),
-          db.prepare('UPDATE practices SET round_done = 0, updated_at = ? WHERE id = ? AND owner_id = ?').bind(now, id, owner),
+          db.prepare('UPDATE practices SET round_done = 0, rounds_done = 0, updated_at = ? WHERE id = ? AND owner_id = ?').bind(now, id, owner),
         ]);
         return NextResponse.json({ ok: true });
       }
       if (body.action === 'restart') {
-        // 再念一次：只清「本轮完成」状态，累计与今日不动。
-        await getEnv().DB.prepare('UPDATE practices SET round_done = 0 WHERE id = ? AND owner_id = ?').bind(id, owner).run();
+        // 再念一次：累计与今日不动，把已完成轮数 +1 并清掉本轮完成状态。
+        // 完成判定为 total >= (rounds_done + 1) * 目标，所以下一轮要再念满一个目标才算完成。
+        const now = new Date().toISOString();
+        await getEnv().DB.prepare('UPDATE practices SET round_done = 0, rounds_done = rounds_done + 1, updated_at = ? WHERE id = ? AND owner_id = ?').bind(now, id, owner).run();
         return NextResponse.json({ ok: true });
       }
       if (body.action === 'unpublish') return NextResponse.json(await withdrawContent(getEnv().DB, id, owner));
