@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, CircleArrowRight, Copy, EllipsisVertical, Pencil, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, Check, ChevronDown, ChevronUp, CircleArrowRight, Copy, EllipsisVertical, Pencil, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
 import type { Practice } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
@@ -13,6 +13,8 @@ function durationLabel(seconds: number): string {
   const minutes = Math.floor((total % 3600) / 60);
   return hours > 0 ? `${hours} 时 ${minutes} 分` : `${minutes} 分`;
 }
+
+interface Wishlist { id: string; name: string; practiceIds: string[]; }
 
 const visibilityLabels = { private: '私有', pending: '待审核', public: '已公开', rejected: '审核未通过' };
 
@@ -76,6 +78,10 @@ export async function practiceRequest<Result>(path: string, method = 'GET', body
 export function PracticeLibrary() {
   const router = useRouter();
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
+  const [activeList, setActiveList] = useState('all');
+  const [listEditor, setListEditor] = useState<{ id?: string; name: string } | null>(null);
+  const [adding, setAdding] = useState<Practice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
@@ -85,7 +91,7 @@ export function PracticeLibrary() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<{ item: Practice; action: 'delete' | 'restart' } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ item: Practice; action: 'delete' | 'restart' | 'zero' } | null>(null);
   const [menu, setMenu] = useState<Practice | null>(null);
   const [foldOpen, setFoldOpen] = useState(false);
   const [publicFoldOpen, setPublicFoldOpen] = useState(false);
@@ -100,8 +106,12 @@ export function PracticeLibrary() {
     setLoading(true);
     setError('');
     setNeedsLogin(false);
-    practiceRequest<Practice[]>('/api/practices', 'GET', undefined, controller.signal)
-      .then((owned) => {
+    Promise.all([
+      practiceRequest<Practice[]>('/api/practices', 'GET', undefined, controller.signal),
+      practiceRequest<Wishlist[]>('/api/wishlists', 'GET', undefined, controller.signal).catch(() => [] as Wishlist[]),
+    ])
+      .then(([owned, lists]) => {
+        setWishlists(lists);
         setPractices(owned);
         const editId = new URLSearchParams(window.location.search).get('edit');
         const selected = owned.find((item) => item.id === editId);
@@ -118,9 +128,11 @@ export function PracticeLibrary() {
 
   useEffect(() => { try { setLastPracticeId(window.localStorage.getItem('buddha:last-practice') ?? ''); } catch {} }, []);
 
-  const foldDone = practices.filter((entry) => Boolean(entry.roundDone));
-  const statusFold = practices.filter((entry) => entry.visibility === 'public' && !entry.roundDone);
-  const items = practices.filter((entry) => entry.visibility !== 'public' && !entry.roundDone);
+  const activeListIds = activeList === 'all' ? null : new Set(wishlists.find((list) => list.id === activeList)?.practiceIds ?? []);
+  const visible = activeListIds ? practices.filter((entry) => activeListIds.has(entry.id)) : practices;
+  const foldDone = visible.filter((entry) => Boolean(entry.roundDone));
+  const statusFold = visible.filter((entry) => entry.visibility === 'public' && !entry.roundDone);
+  const items = visible.filter((entry) => entry.visibility !== 'public' && !entry.roundDone);
   const editingItem = editor?.id ? practices.find((entry) => entry.id === editor.id) : undefined;
 
   async function save(event: React.FormEvent) {
@@ -226,6 +238,61 @@ export function PracticeLibrary() {
     }
   }
 
+  async function zeroPractice(item: Practice) {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await practiceRequest(`/api/practices/${encodeURIComponent(item.id)}`, 'POST', { action: 'zero' });
+      setPractices((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, personal_total: 0, today_total: 0, roundDone: false } : entry));
+      setNotice('已归零：今日与累计清零');
+      setConfirmation(null);
+    } catch (failure) {
+      showError(failure);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveList(event: React.FormEvent) {
+    event.preventDefault();
+    if (!listEditor || busy) return;
+    const name = listEditor.name.trim();
+    if (!name) { setError('愿单名称不能为空'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await practiceRequest<Wishlist>(listEditor.id ? `/api/wishlists/${encodeURIComponent(listEditor.id)}` : '/api/wishlists', listEditor.id ? 'PATCH' : 'POST', { name });
+      setWishlists((previous) => listEditor.id ? previous.map((entry) => entry.id === saved.id ? saved : entry) : [...previous, saved]);
+      setActiveList(saved.id);
+      setNotice(listEditor.id ? '愿单已改名' : `已新建愿单「${name}」`);
+      setListEditor(null);
+    } catch (failure) {
+      showError(failure);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleMembership(practice: Practice, listId: string) {
+    if (busy) return;
+    const list = wishlists.find((entry) => entry.id === listId);
+    if (!list) return;
+    const inside = list.practiceIds.includes(practice.id);
+    const next = inside ? list.practiceIds.filter((id) => id !== practice.id) : [...list.practiceIds, practice.id];
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await practiceRequest<Wishlist>(`/api/wishlists/${encodeURIComponent(listId)}`, 'PATCH', { practiceIds: next });
+      setWishlists((previous) => previous.map((entry) => entry.id === listId ? saved : entry));
+      setNotice(inside ? `已从「${list.name}」移出` : `已加入「${list.name}」`);
+    } catch (failure) {
+      showError(failure);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const isRunning = (item: Practice) => item.id === lastPracticeId;
 
   const progressOf = (item: Practice) => {
@@ -257,6 +324,12 @@ export function PracticeLibrary() {
         <button type="button" className="icon-button bg-accent-soft text-accent" title="新增发愿" aria-label="新增发愿" disabled={loading || busy} onClick={() => { setEditor(makeEditor()); setError(''); setConfirmation(null); }}><Plus size={22} /></button>
       </header>
       {!loading && practices.length > 0 && <p className={styles.summary}><b>{practices.length}</b>个发愿 · 今日念 {practices.reduce((sum, item) => sum + (item.targetKind === 'count' ? (item.today_total ?? 0) : 0), 0).toLocaleString()} 声</p>}
+
+      <div className={styles.chipRow} role="group" aria-label="愿单">
+        <button type="button" className={styles.listChip} aria-pressed={activeList === 'all'} disabled={busy} onClick={() => setActiveList('all')}>全部 <span>{practices.length}</span></button>
+        {wishlists.map((list) => <button key={list.id} type="button" className={styles.listChip} aria-pressed={activeList === list.id} disabled={busy} onClick={() => setActiveList(list.id)}>{list.name} <span>{list.practiceIds.length}</span></button>)}
+        <button type="button" className={styles.listAdd} title="新建愿单" aria-label="新建愿单" disabled={busy} onClick={() => { setListEditor({ name: '' }); setError(''); }}><Plus size={15} />愿单</button>
+      </div>
 
       {error && <div role="alert" className="error-message">{error}{needsLogin && <> <Link href="/login" className={styles.textLink}>登录</Link></>}<button type="button" className="icon-button" title="重新载入" aria-label="重新载入" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={17} /></button></div>}
       <p className={styles.notice} role="status" aria-live="polite">{notice}</p>
@@ -299,9 +372,9 @@ export function PracticeLibrary() {
         </form>
       </section>}
 
-      {confirmation && <div className={styles.confirmOverlay} onClick={() => !busy && setConfirmation(null)}><section className={styles.confirmation} onClick={(event) => event.stopPropagation()} aria-labelledby="confirmation-title"><h2 id="confirmation-title">{confirmation.action === 'delete' ? '删除' : '再念一次'}「{confirmation.item.name}」？</h2><p>{confirmation.action === 'delete' ? '发愿将被删除。' : '回到未完成，可以重新念一轮；今日与累计不清零。'}</p><div className={styles.actions}><button type="button" disabled={busy} className="secondary-button" onClick={() => setConfirmation(null)}>取消</button><button type="button" disabled={busy} className="primary-button" onClick={() => confirmation.action === 'delete' ? mutate(confirmation.item, 'delete') : restartRound(confirmation.item)}>{confirmation.action === 'delete' ? <Trash2 size={17} /> : <RotateCcw size={17} />}{busy ? '正在处理...' : '确认'}</button></div></section></div>}
+      {confirmation && <div className={styles.confirmOverlay} onClick={() => !busy && setConfirmation(null)}><section className={styles.confirmation} onClick={(event) => event.stopPropagation()} aria-labelledby="confirmation-title"><h2 id="confirmation-title">{confirmation.action === 'delete' ? '删除' : confirmation.action === 'zero' ? '归零' : '再念一次'}「{confirmation.item.name}」？</h2><p>{confirmation.action === 'delete' ? '发愿将被删除。' : confirmation.action === 'zero' ? '今日与累计都会清零，进度条从头开始。' : '回到未完成，可以重新念一轮；今日与累计不清零。'}</p><div className={styles.actions}><button type="button" disabled={busy} className="secondary-button" onClick={() => setConfirmation(null)}>取消</button><button type="button" disabled={busy} className="primary-button" onClick={() => confirmation.action === 'delete' ? mutate(confirmation.item, 'delete') : confirmation.action === 'zero' ? zeroPractice(confirmation.item) : restartRound(confirmation.item)}>{confirmation.action === 'delete' ? <Trash2 size={17} /> : <RotateCcw size={17} />}{busy ? '正在处理...' : '确认'}</button></div></section></div>}
 
-      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && statusFold.length === 0 && !error ? <div className="empty-state"><p>暂无发愿</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增发愿</button></div> : (
+      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && statusFold.length === 0 && !error ? <div className="empty-state"><p>{activeList === 'all' ? '暂无发愿' : '这个愿单里还没有发愿'}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增发愿</button></div> : (
         <>
           {statusFold.length > 0 && <section className={styles.fold}>
             <button type="button" className={styles.foldHead} aria-expanded={publicFoldOpen} onClick={() => setPublicFoldOpen((value) => !value)}><span>公开 · {statusFold.length}</span><span>{publicFoldOpen ? '收起' : '展开'}{publicFoldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
@@ -322,9 +395,32 @@ export function PracticeLibrary() {
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setEditor(makeEditor(menu)); setMenu(null); }}><Pencil size={18} />编辑<span className={styles.sheetHint}>名称 · 内容 · 提示</span></button>
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
         {menu.visibility === 'public' && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { share(menu); setMenu(null); }}><Share2 size={18} />复制分享链接<span className={styles.sheetHint}>复制链接</span></button>}
+        <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setAdding(menu); setMenu(null); }}><Bookmark size={18} />加入愿单<span className={styles.sheetHint}>可多选</span></button>
         {menu.roundDone && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'restart' }); setMenu(null); }}><RotateCcw size={18} />再念一次<span className={styles.sheetHint}>回到未完成</span></button>}
+        <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'zero' }); setMenu(null); }}><RotateCcw size={18} />归零<span className={styles.sheetHint}>今日与累计清零</span></button>
         <button type="button" className={`${styles.sheetRow} ${styles.sheetDanger}`} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'delete' }); setMenu(null); }}><Trash2 size={18} />删除<span className={styles.sheetHint}>不可恢复</span></button>
         <button type="button" className={styles.sheetCancel} onClick={() => setMenu(null)}>取消</button>
+      </div>}
+      {adding && <div className={styles.scrim} onClick={() => setAdding(null)} />}
+      {adding && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="加入愿单">
+        <div className={styles.sheetGrab} />
+        <p className={styles.sheetK}>加入愿单</p>
+        <h2 className={styles.sheetTitle}>{adding.name}</h2>
+        {wishlists.length === 0 && <p className={styles.sheetHint} style={{ padding: '14px 20px' }}>还没有愿单，先新建一个。</p>}
+        {wishlists.map((list) => { const inside = list.practiceIds.includes(adding.id); return <button type="button" key={list.id} className={styles.pickRow} disabled={busy} aria-pressed={inside} onClick={() => toggleMembership(adding, list.id)}><span className={styles.grow}>{list.name}<span className={styles.meta}> · {list.practiceIds.length} 个发愿</span></span>{inside ? <Check size={17} /> : <Plus size={17} />}</button>; })}
+        <button type="button" className={styles.sheetCancel} onClick={() => { setAdding(null); setListEditor({ name: '' }); }}>新建愿单</button>
+        <button type="button" className={styles.sheetCancel} onClick={() => setAdding(null)}>完成</button>
+      </div>}
+      {listEditor && <div className={styles.scrim} onClick={() => !busy && setListEditor(null)} />}
+      {listEditor && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="愿单名称">
+        <div className={styles.sheetGrab} />
+        <p className={styles.sheetK}>愿单</p>
+        <h2 className={styles.sheetTitle}>{listEditor.id ? '改名' : '新建愿单'}</h2>
+        <form onSubmit={saveList} style={{ padding: '14px 20px 0' }}>
+          <label className={styles.label} htmlFor="wishlist-name">愿单名称<input id="wishlist-name" className="field" maxLength={40} value={listEditor.name} onChange={(event) => setListEditor({ ...listEditor, name: event.target.value })} /></label>
+          <div className={styles.actions}><button type="submit" className="primary-button" disabled={busy || !listEditor.name.trim()}>{busy ? '正在保存...' : '保存'}</button><button type="button" className="secondary-button" onClick={() => setListEditor(null)}>取消</button></div>
+        </form>
+        {listEditor.id && <button type="button" className={`${styles.sheetCancel} ${styles.sheetDanger}`} disabled={busy} onClick={async () => { const id = listEditor.id!; setBusy(true); try { await practiceRequest(`/api/wishlists/${encodeURIComponent(id)}`, 'DELETE'); setWishlists((previous) => previous.filter((entry) => entry.id !== id)); if (activeList === id) setActiveList('all'); setListEditor(null); setNotice('愿单已删除'); } catch (failure) { showError(failure); } finally { setBusy(false); } }}>删除这个愿单</button>}
       </div>}
     </main>
   );

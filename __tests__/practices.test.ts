@@ -151,6 +151,34 @@ describe('practice API', () => {
     expect(sqlite.prepare('SELECT COUNT(*) AS count FROM practice_likes').get().count).toBe(0);
   });
 
+  it('zeroes today and total and clears the finished round', async () => {
+    const practices = await import('@/app/api/practices/route');
+    const detail = await import('@/app/api/practices/[id]/route');
+    const taps = await import('@/app/api/counters/[id]/taps/route');
+    const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'zero me', prompts: [], target: 108 })));
+    await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'zero-5', delta: 5, date: '2026-11-13' }), context(practice.id));
+    sqlite.prepare('UPDATE practices SET round_done = 1 WHERE id = ?').run(practice.id);
+    await detail.POST(request(`practices/${practice.id}`, 'POST', { action: 'zero' }), context(practice.id));
+    expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ personal_total: 0, today_total: 0, roundDone: false }]);
+  });
+
+  it('groups practices into wishlists that can hold several practices', async () => {
+    const practices = await import('@/app/api/practices/route');
+    const wishlists = await import('@/app/api/wishlists/route');
+    const wishlist = await import('@/app/api/wishlists/[id]/route');
+    const first = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: '早课', prompts: [], target: 108 })));
+    const second = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: '晚课', prompts: [], target: 108 })));
+    const morning = await readJson<{ id: string }>(wishlists.POST(request('wishlists', 'POST', { name: '早晨' })));
+    await wishlist.PATCH(request(`wishlists/${morning.id}`, 'PATCH', { practiceIds: [first.id, second.id] }), context(morning.id));
+    const evening = await readJson<{ id: string }>(wishlists.POST(request('wishlists', 'POST', { name: '晚上' })));
+    await wishlist.PATCH(request(`wishlists/${evening.id}`, 'PATCH', { practiceIds: [first.id] }), context(evening.id));
+    const lists = await readJson<{ id: string; name: string; practiceIds: string[] }[]>(wishlists.GET(request('wishlists')));
+    expect(lists.find((entry) => entry.id === morning.id)?.practiceIds).toEqual([first.id, second.id]);
+    expect(lists.find((entry) => entry.id === evening.id)?.practiceIds).toEqual([first.id]);
+    await wishlist.DELETE(request(`wishlists/${evening.id}`, 'DELETE'), context(evening.id));
+    expect((await readJson<{ id: string }[]>(wishlists.GET(request('wishlists')))).length).toBe(1);
+  });
+
   it('rejects invalid input and unauthenticated access', async () => {
     const practices = await import('@/app/api/practices/route');
     const invalid = await practices.POST(request('practices', 'POST', { name: 'bad', target: 0 }));
