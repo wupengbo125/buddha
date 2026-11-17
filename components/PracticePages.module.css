@@ -226,12 +226,9 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .coverNew { margin: 0 20px 8px; min-height: 44px; border-radius: 999px; border: 1px dashed rgb(var(--c-accent) / .5); background: none; color: rgb(var(--c-accent)); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13.5px; }
 
 .coverBar { display: flex; align-items: center; gap: 8px; margin: -2px 0 10px; }
-.listTools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 12px; border-radius: 14px; background: rgb(var(--c-surface)); }
-.listTools span { display: flex; flex-direction: column; gap: 2px; font-size: 14.5px; }
+.listTools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; padding: 4px 2px 2px; }
+.listTools span { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
 .listTools i { font-style: normal; font-size: 12px; color: rgb(var(--c-muted)); }
-.listTools > div { display: flex; gap: 8px; }
-.listTools .secondary-button { min-height: 34px; padding: 0 12px; font-size: 13px; }
-.listDelete { color: rgb(var(--c-danger)); }
 .allChip { flex: none; min-height: 32px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--c-line); background: none; font-size: 13px; color: rgb(var(--c-muted)); }
 .allChip span { font-size: 11px; opacity: .7; margin-left: 3px; }
 .allChip[aria-pressed='true'] { border-color: rgb(var(--c-accent) / .45); background: rgb(var(--c-accent) / .1); color: rgb(var(--c-accent)); font-weight: 600; }
