@@ -24,7 +24,7 @@ export function clampCaptionMs(value: number): number {
 
 export function clampAttentionLevel(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.min(3, Math.max(0, Math.round(value)));
+  return Math.min(600, Math.max(0, Math.round(value)));
 }
 
 export function defaultSettings(): Settings {

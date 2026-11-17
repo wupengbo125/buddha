@@ -121,15 +121,10 @@ export function SettingsClient() {
           <datalist id="timezone-list"><option value="Asia/Shanghai" /><option value="Asia/Tokyo" /><option value="UTC" /><option value="America/Los_Angeles" /></datalist>
         </label>
         <div className="mt-5">
-          <span className="field-label">别走神</span>
-          <p className="mb-3 text-xs text-muted">开了以后，每隔一段时间木鱼周围随机出现一朵小莲花，点掉才继续；没点掉时不计时、不计数。</p>
-          <div className="segmented" role="group" aria-label="别走神">
-            {[0, 1, 2, 3].map((level) => (
-              <button key={level} type="button" onClick={() => patch({ attentionLevel: level })} aria-pressed={settings.attentionLevel === level}>
-                {level === 0 ? '关' : `${level} 分`}
-              </button>
-            ))}
-          </div>
+          <label className="field-label" htmlFor="attention-level">别走神（分钟，填 0 = 关）</label>
+          <input id="attention-level" className="field" type="number" min={0} max={600} step={1} inputMode="numeric" value={settings.attentionLevel}
+            onChange={(event) => patch({ attentionLevel: Number(event.target.value) })} />
+          <p className="mt-2 text-xs text-muted">填 N：每隔大约 N 分钟的 80%–120% 随机出现一朵小莲花，位置也在木鱼周围随机；点掉才继续，没点掉时不计时、不计数。填 0 关闭。</p>
         </div>
         {error && <p className="error-message" role="alert">{error}</p>}
         {timeZoneSaved && !error && <p className="mt-3 text-xs text-muted" role="status">时区已保存</p>}
