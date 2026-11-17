@@ -69,6 +69,7 @@ export function ChantClient() {
   const [attention, setAttention] = useState(false);
   const [attentionSpot, setAttentionSpot] = useState(0);
   const nextCheckRef = useRef<number | null>(null);
+  const lastChimeRef = useRef(0);
   // 次数模式按每次 2 秒折算，时长模式按分钟×60；否则界面上只加了几秒，看起来没动。
   const pendingFor = (counterId: string) => Object.values(pending)
     .filter((report) => report.counterId === counterId)
@@ -238,7 +239,7 @@ export function ChantClient() {
               {attention && <button type="button" className="attention-dot" style={ATTENTION_SPOTS[attentionSpot]} aria-label="点一下继续念诵" onClick={dismissAttention}><img src="/lotus.png" width={26} height={26} alt="" draggable={false} /></button>}
               <WoodenFish onTap={() => {
                 // 提醒点没点掉：只响一声磬，不计数、不加时，让人立刻发现要回来点。
-                if (attention) { if (soundEnabled) playAttentionChime(); return; }
+                if (attention) { if (soundEnabled && Date.now() - lastChimeRef.current > 1200) { lastChimeRef.current = Date.now(); playAttentionChime(); } return; }
                 // 时长模式只走本地计时与分钟上报，不发 /taps；但音效弹幕照常。
                 chant.tap();
                 feedbackTap(selected, chant.taps);
