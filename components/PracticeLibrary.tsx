@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Bookmark, Check, ChevronDown, ChevronUp, CircleArrowRight, Copy, EllipsisVertical, Pencil, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, Check, ChevronDown, ChevronRight, ChevronUp, CircleArrowRight, Copy, EllipsisVertical, Pencil, Plus, RefreshCw, RotateCcw, Save, Share2, Trash2, X } from 'lucide-react';
 import type { Practice } from '@/lib/practice-types';
 import styles from './PracticePages.module.css';
 
@@ -337,6 +337,10 @@ export function PracticeLibrary() {
       </header>
       {!loading && practices.length > 0 && <p className={styles.summary}><b>{practices.length}</b>个发愿 · 今日念 {practices.reduce((sum, item) => sum + (item.targetKind === 'count' ? (item.today_total ?? 0) : 0), 0).toLocaleString()} 声</p>}
 
+      <div className={styles.coverBar}>
+        <button type="button" className={styles.allChip} aria-pressed={activeList === 'all'} disabled={busy} onClick={() => setActiveList('all')}>全部发愿 <span>{practices.length}</span></button>
+        <button type="button" className={styles.allEntry} disabled={busy} onClick={() => { setListQuery(''); setAllListsOpen(true); }}>全部愿单 <span>{wishlists.length}</span><ChevronRight size={14} /></button>
+      </div>
       <div className={styles.coverRow} role="group" aria-label="愿单">
         {wishlists.map((list) => (
           <button key={list.id} type="button" className={`${styles.coverCard} ${styles[coverOf(list.name)]}`} aria-pressed={activeList === list.id} disabled={busy} onClick={() => setActiveList(list.id)}>
@@ -345,11 +349,6 @@ export function PracticeLibrary() {
             <span className={styles.coverCount}>{list.practiceIds.length} 个</span>
           </button>
         ))}
-        <button type="button" className={`${styles.coverCard} ${styles.coverAll}`} disabled={busy} onClick={() => { setListQuery(''); setAllListsOpen(true); }} title="全部愿单" aria-label="全部愿单">
-          <Bookmark size={20} />
-          <b>全部愿单</b>
-          <span className={styles.coverCount}>{wishlists.length} 个</span>
-        </button>
       </div>
 
       {error && <div role="alert" className="error-message">{error}{needsLogin && <> <Link href="/login" className={styles.textLink}>登录</Link></>}<button type="button" className="icon-button" title="重新载入" aria-label="重新载入" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={17} /></button></div>}
