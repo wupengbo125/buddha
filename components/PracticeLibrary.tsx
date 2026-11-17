@@ -350,6 +350,14 @@ export function PracticeLibrary() {
           </button>
         ))}
       </div>
+      {activeList !== 'all' && (() => {
+        const list = wishlists.find((entry) => entry.id === activeList);
+        if (!list) return null;
+        return <div className={styles.listTools}><span><b>{list.name}</b><i>{list.practiceIds.length} 个发愿</i></span><div>
+          <button type="button" className="secondary-button" disabled={busy} onClick={() => { setListEditor({ id: list.id, name: list.name }); setError(''); }}><Pencil size={15} />改名</button>
+          <button type="button" className={`${styles.listDelete} secondary-button`} disabled={busy} onClick={async () => { setBusy(true); try { await practiceRequest(`/api/wishlists/${encodeURIComponent(list.id)}`, 'DELETE'); setWishlists((previous) => previous.filter((entry) => entry.id !== list.id)); setActiveList('all'); setNotice('愿单已删除'); } catch (failure) { showError(failure); } finally { setBusy(false); } }}><Trash2 size={15} />删除</button>
+        </div></div>;
+      })()}
 
       {error && <div role="alert" className="error-message">{error}{needsLogin && <> <Link href="/login" className={styles.textLink}>登录</Link></>}<button type="button" className="icon-button" title="重新载入" aria-label="重新载入" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={17} /></button></div>}
       <p className={styles.notice} role="status" aria-live="polite">{notice}</p>
@@ -416,6 +424,7 @@ export function PracticeLibrary() {
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { mutate(menu, 'copy'); setMenu(null); }}><Copy size={18} />复制<span className={styles.sheetHint}>含提示与目标</span></button>
         {menu.visibility === 'public' && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { share(menu); setMenu(null); }}><Share2 size={18} />复制分享链接<span className={styles.sheetHint}>复制链接</span></button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setAdding(menu); setMenu(null); }}><Bookmark size={18} />加入愿单<span className={styles.sheetHint}>可多选</span></button>
+        {activeList !== 'all' && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { const list = wishlists.find((entry) => entry.id === activeList); if (list) void toggleMembership(menu, list.id); setMenu(null); }}><Bookmark size={18} />移出当前愿单<span className={styles.sheetHint}>{wishlists.find((entry) => entry.id === activeList)?.name}</span></button>}
         {menu.roundDone && <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'restart' }); setMenu(null); }}><RotateCcw size={18} />再念一次<span className={styles.sheetHint}>回到未完成</span></button>}
         <button type="button" className={styles.sheetRow} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'zero' }); setMenu(null); }}><RotateCcw size={18} />归零<span className={styles.sheetHint}>今日与累计清零</span></button>
         <button type="button" className={`${styles.sheetRow} ${styles.sheetDanger}`} disabled={busy} onClick={() => { setConfirmation({ item: menu, action: 'delete' }); setMenu(null); }}><Trash2 size={18} />删除<span className={styles.sheetHint}>不可恢复</span></button>
