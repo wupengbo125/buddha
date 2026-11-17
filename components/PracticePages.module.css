@@ -191,19 +191,18 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 /* 愿单封面：横向滑动，只表示分组，不带进度。 */
 .coverRow { display: flex; gap: 10px; overflow-x: auto; padding: 2px 0 14px; margin: 0 -4px 4px; scrollbar-width: none; }
 .coverRow::-webkit-scrollbar { display: none; }
-.coverCard { flex: none; position: relative; width: 100px; height: 124px; border-radius: 14px; border: 1.5px solid transparent; color: #f4f7f2; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 2px; padding: 10px; text-align: left; overflow: hidden; transition: border-color .18s ease, transform .18s ease; }
-.coverCard::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(0 0 0 / .04) 30%, rgb(0 0 0 / .42)); }
+.coverCard { flex: none; position: relative; width: 100px; height: 124px; border-radius: 14px; border: 0; color: #35413a; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 2px; padding: 10px; text-align: left; overflow: hidden; transition: border-color .18s ease, transform .18s ease; }
 .coverCard > * { position: relative; z-index: 1; }
-.coverCard[aria-pressed='true'] { border-color: rgb(var(--c-accent)); transform: translateY(-2px); }
-.coverCard b { font-size: 15px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; max-height: 2.5em; overflow: hidden; }
-.coverCount { font-size: 10.5px; opacity: .8; }
-.coverCheck { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 10px; background: rgb(var(--c-accent)); display: grid; place-items: center; z-index: 2; }
-.coverMoss { background: radial-gradient(120% 90% at 20% 10%, #7d9a86 0%, #4f6f5b 45%, #2f4a3b 100%); }
-.coverPine { background: radial-gradient(120% 90% at 80% 0%, #5d7768 0%, #3a5244 50%, #1f3228 100%); }
-.coverClay { background: radial-gradient(120% 90% at 30% 10%, #b7a184 0%, #8d7458 48%, #5c4a37 100%); }
-.coverSlate { background: radial-gradient(120% 90% at 70% 10%, #8c9ea0 0%, #5f7274 50%, #3a4a4b 100%); }
-.coverSand { background: radial-gradient(120% 90% at 20% 0%, #c9b99a 0%, #a3926f 50%, #6f6248 100%); }
-.coverInk { background: radial-gradient(120% 90% at 30% 0%, #6f7d78 0%, #46534f 50%, #26302c 100%); }
+.coverCard[aria-pressed='true'] { box-shadow: 0 0 0 1.5px rgb(var(--c-accent)); transform: translateY(-2px); }
+.coverCard b { font-size: 15px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; max-height: 2.5em; overflow: hidden; color: #2f3a33; }
+.coverCount { font-size: 10.5px; color: #4e5a50; opacity: .85; }
+.coverCheck { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 10px; background: rgb(var(--c-accent)); color: rgb(var(--c-paper)); display: grid; place-items: center; z-index: 2; }
+.coverMoss { background: linear-gradient(160deg, #a9b6a1, #93a38c); }
+.coverPine { background: linear-gradient(160deg, #afbbc4, #94a2ac); }
+.coverClay { background: linear-gradient(160deg, #c8b0a6, #ae948a); }
+.coverSlate { background: linear-gradient(160deg, #cbc3b2, #b2a896); }
+.coverSand { background: linear-gradient(160deg, #b7adbb, #9d93a2); }
+.coverInk { background: linear-gradient(160deg, #9eaf9d, #849682); }
 .coverAll { background: rgb(var(--c-surface)); color: rgb(var(--c-accent)); align-items: center; justify-content: center; border: 1px dashed rgb(var(--c-accent) / .45); }
 .coverAll::after { display: none; }
 .coverAll b { font-size: 12px; font-weight: 600; }
@@ -214,14 +213,12 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .coverSheetHead span { font-size: 11.5px; color: rgb(var(--c-muted)); }
 .coverSearch { margin: 0 20px 12px; width: auto; }
 .coverGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 2px 20px 12px; overflow-y: auto; }
-.coverTile { position: relative; height: 92px; border-radius: 13px; border: 1.5px solid transparent; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 2px; padding: 10px; color: #f4f7f2; text-align: left; overflow: hidden; }
-.coverTile::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(0 0 0 / .04) 30%, rgb(0 0 0 / .38)); }
+.coverTile { position: relative; height: 92px; border-radius: 13px; border: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 2px; padding: 10px; color: #35413a; text-align: left; overflow: hidden; }
 .coverTile > * { position: relative; z-index: 1; }
-.coverTile b { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
-.coverTile span { font-size: 10.5px; opacity: .8; }
-.coverTile.coverAll { align-items: center; justify-content: center; color: rgb(var(--c-accent)); }
-.coverTile.coverAll::after { display: none; }
-.coverActive { border-color: rgb(var(--c-accent)); }
+.coverTile b { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; color: #2f3a33; }
+.coverTile span { font-size: 10.5px; color: #4e5a50; opacity: .85; }
+.coverTile.coverAll { align-items: center; justify-content: center; color: rgb(var(--c-accent)); background: rgb(var(--c-surface)); }
+.coverActive { box-shadow: 0 0 0 1.5px rgb(var(--c-accent)); }
 .coverTile svg { position: absolute; top: 8px; right: 8px; z-index: 2; }
 .coverNew { margin: 0 20px 8px; min-height: 44px; border-radius: 999px; border: 1px dashed rgb(var(--c-accent) / .5); background: none; color: rgb(var(--c-accent)); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13.5px; }
 
