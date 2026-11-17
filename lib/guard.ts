@@ -2,12 +2,12 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { SESSION_COOKIE } from './auth';
-import { verifyToken } from './session';
+import { SESSION_COOKIE, OWNER_ID } from './auth';
+import { sessionOwner } from './session';
 
-export async function requirePageSession(): Promise<void> {
-  // verifyToken 内部 fail-closed：密码缺失 / 上下文异常一律 false，不会抛错吞掉 redirect。
-  if (!(await verifyToken((await cookies()).get(SESSION_COOKIE)?.value))) {
-    redirect('/login');
-  }
+export async function requirePageSession(): Promise<string> {
+  // fail-closed：密码缺失 / token 无效一律跳登录。
+  const owner = await sessionOwner((await cookies()).get(SESSION_COOKIE)?.value);
+  if (!owner) redirect('/login');
+  return owner;
 }

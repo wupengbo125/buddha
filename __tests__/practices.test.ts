@@ -14,7 +14,7 @@ async function readJson<Result>(response: Response | Promise<Response>): Promise
 }
 
 const state = vi.hoisted(() => ({ db: null as any, owner: 'owner', authenticated: true, deleteImage: vi.fn() }));
-vi.mock('@/lib/session', () => ({ requireSession: async () => state.authenticated }));
+vi.mock('@/lib/session', () => ({ requireSession: async () => state.authenticated, currentOwner: async () => state.authenticated ? state.owner : null }));
 vi.mock('@/lib/auth', () => ({ get OWNER_ID() { return state.owner; } }));
 vi.mock('@/lib/runtime', () => ({ getEnv: () => ({ DB: state.db, IMAGES: { delete: state.deleteImage } }) }));
 

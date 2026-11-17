@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import {
+  OWNER_ID,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   deriveSecret,
@@ -71,11 +72,6 @@ export async function requireSession(req: NextRequest): Promise<boolean> {
   return readSession(req);
 }
 
-/** 登录成功后签发 session；password 由调用方（登录 API）读取并显式传入。 */
-export async function createSession(password: string): Promise<string> {
-  return signSession(await deriveSecret(password));
-}
-
 export function setSessionCookie(res: NextResponse, token: string, secure: boolean): void {
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -88,4 +84,63 @@ export function setSessionCookie(res: NextResponse, token: string, secure: boole
 
 export function clearSessionCookie(res: NextResponse): void {
   res.cookies.set(SESSION_COOKIE, '', { path: '/', maxAge: 0 });
+}
+
+
+export interface LoginAccount {
+  username: string;
+  password: string;
+  owner: string;
+}
+
+/** 账号归属 id：主账号沿用 'owner'（历史数据都在它名下），其他人用用户名哈希，互不干扰。 */
+async function ownerFor(username: string): Promise<string> {
+  if (username === getUsername()) return OWNER_ID;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`buddha-account:${username}`));
+  return `guest-${Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16)}`;
+}
+
+function readEnvSecret(name: string): string | undefined {
+  try {
+    const env = getCloudflareContext().env as Record<string, string | undefined>;
+    if (env?.[name]) return env[name];
+  } catch {}
+  return process.env[name];
+}
+
+/** 全部可登录账号：主账号 + Cloudflare secret 里的第二账号（本地走同名环境变量）。 */
+export async function getAccounts(): Promise<LoginAccount[]> {
+  const accounts: LoginAccount[] = [{ username: getUsername(), password: getPassword(), owner: OWNER_ID }];
+  const secondUser = readEnvSecret('account2_username');
+  const secondPassword = readEnvSecret('account2_password');
+  if (secondUser && secondPassword) {
+    accounts.push({ username: secondUser, password: secondPassword, owner: await ownerFor(secondUser) });
+  }
+  return accounts;
+}
+
+/** session 的签名密钥固定用主账号密码派生：主密码不变，所有账号的登录态都有效。 */
+export async function sessionSecret(): Promise<string> {
+  return deriveSecret(getPassword());
+}
+
+/** 登录成功后签发 session。 */
+export async function createSession(owner: string): Promise<string> {
+  return signSession(await sessionSecret(), owner);
+}
+
+/** 从 token 取数据归属 id；无效 token 返回 null。 */
+export async function sessionOwner(token: string | undefined): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const payload = await verifySession(token, await sessionSecret());
+    return payload?.sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 请求对应的数据归属 id；未登录返回 null。 */
+export async function currentOwner(req: NextRequest): Promise<string | null> {
+  return sessionOwner(req.cookies.get(SESSION_COOKIE)?.value);
 }

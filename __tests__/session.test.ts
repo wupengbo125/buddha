@@ -105,7 +105,7 @@ describe('本地评估账号', () => {
 describe('R1 · session 校验密码缺失 → 一律视为未登录', () => {
   it('合法 token 在密码缺失时不放行（不用空密钥验证）', async () => {
     setPassword(PW);
-    const token = await createSession(PW);
+    const token = await createSession('owner');
     expect(await verifyToken(token)).toBe(true);
     setPassword(undefined);
     expect(await verifyToken(token)).toBe(false);
@@ -115,7 +115,7 @@ describe('R1 · session 校验密码缺失 → 一律视为未登录', () => {
 
   it('无密码时 readSession 一律 false', async () => {
     setPassword(PW);
-    const token = await createSession(PW);
+    const token = await createSession('owner');
     const req = authedRequest(token);
     setPassword(undefined);
     expect(await readSession(req)).toBe(false);

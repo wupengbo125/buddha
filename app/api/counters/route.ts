@@ -2,25 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ulid } from 'ulid';
 import { getEnv } from '@/lib/runtime';
-import { requireSession, jsonError, readJson } from '@/lib/http';
-import { OWNER_ID } from '@/lib/auth';
+import { currentOwner, jsonError, readJson } from '@/lib/http';
 import type { Counter } from '@/lib/types';
 
 const SELECT_COUNTER =
   'SELECT id, device_id, name, caption, total, today, today_date, sound_enabled, created_at, updated_at FROM counters';
 
 export async function GET(req: NextRequest) {
-  if (!(await requireSession(req))) return jsonError('未登录', 401);
+  const owner = await currentOwner(req);
+  if (!owner) return jsonError('未登录', 401);
   try {
     const { DB } = getEnv();
     const base = 'SELECT c.id, c.device_id, c.name, c.caption, c.total, c.today, c.today_date, c.sound_enabled, c.created_at, c.updated_at, p.name AS title, p.prompts AS prompts, p.target AS target';
     const where = ' FROM counters c LEFT JOIN practices p ON p.id = c.id WHERE c.id IN (SELECT id FROM practices WHERE owner_id = ?) ORDER BY c.created_at ASC, c.id ASC';
     let res;
     try {
-      res = await DB.prepare(`${base}, p.target_kind AS target_kind, p.target_seconds AS target_seconds, p.idle_seconds AS idle_seconds, p.min_seconds AS min_seconds${where}`).bind(OWNER_ID).all<Counter>();
+      res = await DB.prepare(`${base}, p.target_kind AS target_kind, p.target_seconds AS target_seconds, p.idle_seconds AS idle_seconds, p.min_seconds AS min_seconds${where}`).bind(owner).all<Counter>();
     } catch {
       // 兼容尚未执行 0008 迁移的库（老测试库只跑到 0004/0007）。
-      res = await DB.prepare(`${base}${where}`).bind(OWNER_ID).all<Counter>();
+      res = await DB.prepare(`${base}${where}`).bind(owner).all<Counter>();
     }
     return NextResponse.json({ counters: res.results ?? [] });
   } catch {
@@ -34,7 +34,8 @@ const CreateBody = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (!(await requireSession(req))) return jsonError('未登录', 401);
+  const owner = await currentOwner(req);
+  if (!owner) return jsonError('未登录', 401);
   const parsed = CreateBody.safeParse(await readJson(req));
   if (!parsed.success) return jsonError('输入无效：name 必填且不超过 60 字', 400);
   try {
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     await DB.prepare(
       'INSERT INTO counters (id, device_id, name, caption, total, today, today_date, sound_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 0, \'\', 1, ?, ?)',
     )
-      .bind(id, OWNER_ID, parsed.data.name, parsed.data.caption, now, now)
+      .bind(id, owner, parsed.data.name, parsed.data.caption, now, now)
       .run();
     const counter = await DB.prepare(`${SELECT_COUNTER} WHERE id = ?`).bind(id).first<Counter>();
     return NextResponse.json({ counter }, { status: 201 });

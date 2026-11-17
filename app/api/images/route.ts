@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ulid } from 'ulid';
 import { getEnv } from '@/lib/runtime';
-import { requireSession, jsonError } from '@/lib/http';
-import { OWNER_ID } from '@/lib/auth';
+import { currentOwner, jsonError } from '@/lib/http';
 import { imageKey, uploadImage } from '@/lib/r2';
 import { imageUrlFor } from '@/lib/image-access';
 
@@ -18,7 +17,8 @@ const UploadMeta = z.object({
 
 // 列表回显：详情页据此展示该计数器的全部图片
 export async function GET(req: NextRequest) {
-  if (!(await requireSession(req))) return jsonError('未登录', 401);
+  const owner = await currentOwner(req);
+  if (!owner) return jsonError('未登录', 401);
   const counterId = new URL(req.url).searchParams.get('counter_id');
   if (!counterId) return jsonError('counter_id 缺失', 400);
   try {
@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await requireSession(req))) return jsonError('未登录', 401);
+  const owner = await currentOwner(req);
+  if (!owner) return jsonError('未登录', 401);
   const form = await req.formData().catch(() => null);
   if (!form) return jsonError('表单无效', 400);
   const counterIdRaw = form.get('counter_id');
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     await DB.prepare(
       'INSERT INTO images (id, counter_id, device_id, r2_key, content_type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     )
-      .bind(id, counterIdRaw, OWNER_ID, key, contentType, new Date().toISOString())
+      .bind(id, counterIdRaw, owner, key, contentType, new Date().toISOString())
       .run();
     return NextResponse.json({ id, url: imageUrlFor(key) }, { status: 201 });
   } catch {

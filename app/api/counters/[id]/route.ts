@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { D1Database } from '@/lib/db';
 import { getEnv } from '@/lib/runtime';
-import { requireSession, jsonError, readJson } from '@/lib/http';
+import { currentOwner, jsonError, readJson } from '@/lib/http';
 import type { Counter } from '@/lib/types';
-import { OWNER_ID } from '@/lib/auth';
 import { atomic, ownedRow } from '@/lib/practice-store';
 import { detailHandlers } from '@/lib/practice-api';
 import { reviewContent } from '@/lib/practice-moderation';
@@ -15,8 +14,8 @@ const SELECT_COUNTER =
 
 type Ctx = { params: Promise<{ id: string }> };
 
-async function ownedCounter(DB: D1Database, id: string): Promise<Counter | null> {
-  return DB.prepare(`${SELECT_COUNTER} WHERE id = ? AND id IN (SELECT id FROM practices WHERE owner_id = ?)`).bind(id, OWNER_ID).first<Counter>();
+async function ownedCounter(DB: D1Database, id: string, owner: string): Promise<Counter | null> {
+  return DB.prepare(`${SELECT_COUNTER} WHERE id = ? AND id IN (SELECT id FROM practices WHERE owner_id = ?)`).bind(id, owner).first<Counter>();
 }
 
 const PatchBody = z
@@ -30,15 +29,16 @@ const PatchBody = z
   });
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
-  if (!(await requireSession(req))) return jsonError('未登录', 401);
+  const owner = await currentOwner(req);
+  if (!owner) return jsonError('未登录', 401);
   const { id } = await params;
   const parsed = PatchBody.safeParse(await readJson(req));
   if (!parsed.success) return jsonError('输入无效', 400);
   try {
     const { DB } = getEnv();
-    const existing = await ownedCounter(DB, id);
+    const existing = await ownedCounter(DB, id, owner);
     if (!existing) return jsonError('计数器不存在', 404);
-    const previous = await ownedRow(DB, id, OWNER_ID);
+    const previous = await ownedRow(DB, id, owner);
 
     const sets: string[] = [];
     const vals: unknown[] = [];
@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (textChanged) {
       sets.push("visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END", 'revision = revision + 1', 'updated_at = ?');
       statements.push(DB.prepare(`UPDATE practices SET ${sets.join(', ')} WHERE id = ? AND owner_id = ?`)
-        .bind(...vals, now, id, OWNER_ID));
+        .bind(...vals, now, id, owner));
     }
     if (parsed.data.sound_enabled !== undefined) {
       statements.push(DB.prepare('UPDATE counters SET sound_enabled = ?, updated_at = ? WHERE id = ?')
@@ -64,10 +64,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     }
     await atomic(DB, statements);
     if (textChanged && (previous.approved_snapshot || previous.visibility === 'pending')) {
-      await reviewContent(DB, id, OWNER_ID);
+      await reviewContent(DB, id, owner);
     }
 
-    const counter = await ownedCounter(DB, id);
+    const counter = await ownedCounter(DB, id, owner);
     return NextResponse.json({ counter });
   } catch (error) {
     return practiceResponse(error);

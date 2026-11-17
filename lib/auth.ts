@@ -41,10 +41,10 @@ export async function deriveSecret(password: string): Promise<string> {
     .join('');
 }
 
-export async function signSession(secret: string): Promise<string> {
+export async function signSession(secret: string, subject = SESSION_SUBJECT): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(SESSION_SUBJECT)
+    .setSubject(subject)
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
     .sign(new TextEncoder().encode(secret));
@@ -54,7 +54,8 @@ export async function signSession(secret: string): Promise<string> {
 export async function verifySession(token: string, secret: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-    if (payload.sub !== SESSION_SUBJECT) return null;
+    // 多账号：subject 即数据归属 id；只接受主账号 'owner' 或 guest-<16位哈希>，其余一律拒绝。
+    if (!payload.sub || !(payload.sub === SESSION_SUBJECT || /^guest-[0-9a-f]{16}$/.test(payload.sub))) return null;
     return { sub: payload.sub };
   } catch {
     return null;
