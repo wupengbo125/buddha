@@ -11,6 +11,8 @@ import { Caption } from './Caption';
 import { WoodenFish } from './WoodenFish';
 import { ChantCounts } from './ChantCounts';
 import { ChantReporter, reportDisplayAmount, type PendingChantReport } from '@/lib/chant-report';
+import { attentionDelay } from '@/lib/attention';
+import { playAttentionChime } from '@/lib/sound';
 import { useChant } from './useChant';
 import { useChantSession } from './useChantSession';
 
@@ -55,6 +57,9 @@ export function ChantClient() {
   const [pending, setPending] = useState<Record<string, PendingChantReport>>({});
   const reporterRef = useRef<ChantReporter | null>(null);
   const [syncError, setSyncError] = useState('');
+  // 专注提醒：随机 3–5 分钟出现一个点，点掉才继续；出现期间时间/次数冻结。
+  const [attention, setAttention] = useState(false);
+  const nextCheckRef = useRef<number | null>(null);
   // 次数模式按每次 2 秒折算，时长模式按分钟×60；否则界面上只加了几秒，看起来没动。
   const pendingFor = (counterId: string) => Object.values(pending)
     .filter((report) => report.counterId === counterId)
@@ -142,6 +147,28 @@ export function ChantClient() {
     onBatch: (batch) => (isTime ? reportMinutes(batch) : reportTaps(batch)),
   });
 
+  // 专注提醒调度：只在正在念诵时计时；超时停表或提醒未点掉时都不推进。
+  useEffect(() => {
+    if (chant.paused) { nextCheckRef.current = null; if (attention) setAttention(false); return; }
+    if (attention) return;
+    if (nextCheckRef.current === null) nextCheckRef.current = Date.now() + attentionDelay();
+    const timer = setInterval(() => {
+      if (nextCheckRef.current !== null && Date.now() >= nextCheckRef.current) {
+        nextCheckRef.current = null;
+        chant.hold();
+        setAttention(true);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chant.paused, attention, selected?.id]);
+
+  const dismissAttention = () => {
+    chant.resumeHold();
+    nextCheckRef.current = Date.now() + attentionDelay();
+    setAttention(false);
+  };
+
   // 时长模式：秒针走动每秒刷新 + 判断分钟上报。
   const [, setClock] = useState(0);
   useEffect(() => {
@@ -192,7 +219,10 @@ export function ChantClient() {
               <div className="chant-caption" aria-live="off">
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
+              {attention && <button type="button" className="attention-dot" aria-label="点一下继续念诵" onClick={dismissAttention}><i /></button>}
               <WoodenFish onTap={() => {
+                // 提醒点没点掉：只响一声磬，不计数、不加时，让人立刻发现要回来点。
+                if (attention) { if (soundEnabled) playAttentionChime(); return; }
                 // 时长模式只走本地计时与分钟上报，不发 /taps；但音效弹幕照常。
                 chant.tap();
                 feedbackTap(selected, chant.taps);

@@ -21,6 +21,8 @@ export function prefersReducedMotion(): boolean {
 
 let audioCtx: AudioContext | null = null;
 let woodenFishBuffer: AudioBuffer | null = null;
+let chimeBuffer: AudioBuffer | null = null;
+let chimeDataPromise: Promise<ArrayBuffer | null> | null = typeof window !== 'undefined' ? fetch('/attention-chime.wav').then((r) => r.arrayBuffer() as Promise<ArrayBuffer>).catch(() => null) : null;
 let iosAudioUnlocked = false;
 let audioDataPromise: Promise<ArrayBuffer | null> | null =
   typeof window !== 'undefined'
@@ -111,6 +113,39 @@ function playBuffer(ac: AudioContext): void {
         src.start();
       })
       .catch(() => {});
+  }
+}
+
+/** 专注提醒未点掉时敲木鱼的声音：一声清亮的磬音，和木鱼声区分开。 */
+export function playAttentionChime(): void {
+  try {
+    unlockIosAudioOnce();
+    const ac = getAudioContext();
+    if (!ac) return;
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    if (chimeBuffer) {
+      const src = ac.createBufferSource();
+      src.buffer = chimeBuffer;
+      src.connect(ac.destination);
+      src.start();
+      return;
+    }
+    if (chimeDataPromise) {
+      chimeDataPromise
+        .then((buf) => buf && ac.decodeAudioData(buf.slice(0)))
+        .then((decoded) => {
+          if (!decoded) return;
+          chimeBuffer = decoded;
+          if (ac.state === 'closed') return;
+          const src = ac.createBufferSource();
+          src.buffer = decoded;
+          src.connect(ac.destination);
+          src.start();
+        })
+        .catch(() => {});
+    }
+  } catch {
+    /* 静默 */
   }
 }
 
