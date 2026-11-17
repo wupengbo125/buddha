@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { captionAt, parsePrompts } from '@/lib/caption';
+import { reportDisplayAmount } from '@/lib/chant-report';
 
 describe('弹幕取词', () => {
   it('每敲一下换一条并循环，空项被跳过', () => {
@@ -21,5 +22,13 @@ describe('弹幕取词', () => {
     expect(captionAt([], '名称', 5)).toBe('名称');
     expect(parsePrompts('not json')).toEqual([]);
     expect(parsePrompts('["a", 1, "b"]')).toEqual(['a', 'b']);
+  });
+});
+
+describe('待报批次折算', () => {
+  const base = { eventId: 'e', counterId: 'c', date: '2026-11-17' };
+  it('时长批次分钟变秒，次数批次保持声数', () => {
+    expect(reportDisplayAmount({ ...base, path: 'minutes', amount: 3 })).toBe(180);
+    expect(reportDisplayAmount({ ...base, path: 'taps', amount: 100 })).toBe(100);
   });
 });

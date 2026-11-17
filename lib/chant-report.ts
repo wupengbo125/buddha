@@ -16,6 +16,11 @@ export type PendingChantReport = {
 
 const RETRY_DELAY_MS = 1500;
 
+/** 待报批次折算成本模式的单位：时长批次是分钟（×60 变秒），次数批次就是声数。 */
+export function reportDisplayAmount(report: PendingChantReport): number {
+  return report.path === 'minutes' ? report.amount * 60 : report.amount;
+}
+
 async function post(path: string, body: unknown): Promise<ReportOutcome> {
   try {
     const response = await fetch(path, {

@@ -10,7 +10,7 @@ import { dateKey } from '@/lib/time';
 import { Caption } from './Caption';
 import { WoodenFish } from './WoodenFish';
 import { ChantCounts } from './ChantCounts';
-import { ChantReporter, type PendingChantReport } from '@/lib/chant-report';
+import { ChantReporter, reportDisplayAmount, type PendingChantReport } from '@/lib/chant-report';
 import { useChant } from './useChant';
 import { useChantSession } from './useChantSession';
 
@@ -55,9 +55,10 @@ export function ChantClient() {
   const [pending, setPending] = useState<Record<string, PendingChantReport>>({});
   const reporterRef = useRef<ChantReporter | null>(null);
   const [syncError, setSyncError] = useState('');
+  // 次数模式按每次 2 秒折算，时长模式按分钟×60；否则界面上只加了几秒，看起来没动。
   const pendingFor = (counterId: string) => Object.values(pending)
     .filter((report) => report.counterId === counterId)
-    .reduce((sum, report) => sum + report.amount, 0);
+    .reduce((sum, report) => sum + reportDisplayAmount(report), 0);
   const shownToday = baseToday + pendingFor(selected?.id ?? '');
   const shownTotal = baseTotal + pendingFor(selected?.id ?? '');
 
@@ -79,8 +80,8 @@ export function ChantClient() {
     });
     const unsubscribe = reporter.subscribe((event) => {
       if (event.type === 'confirmed') {
-        drop(event.report.eventId);
-        void refreshCounts();
+        // 先刷新服务端数值再撤掉本地增量，避免中间一帧回退。
+        void refreshCounts().then(() => drop(event.report.eventId));
         setSyncError('');
       } else if (event.type === 'rejected') {
         drop(event.report.eventId);

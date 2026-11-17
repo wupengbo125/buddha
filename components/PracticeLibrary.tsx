@@ -203,7 +203,7 @@ export function PracticeLibrary() {
     setError('');
     try {
       await practiceRequest(`/api/practices/${encodeURIComponent(item.id)}`, 'POST', { action: 'restart' });
-      setPractices((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, roundDone: false } : entry));
+      setPractices((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, roundDone: false, roundsDone: (entry.roundsDone ?? 0) + 1 } : entry));
       setNotice('已回到未完成，可以再念一次');
       setConfirmation(null);
     } catch (failure) {
@@ -244,7 +244,7 @@ export function PracticeLibrary() {
     setError('');
     try {
       await practiceRequest(`/api/practices/${encodeURIComponent(item.id)}`, 'POST', { action: 'zero' });
-      setPractices((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, personal_total: 0, today_total: 0, roundDone: false } : entry));
+      setPractices((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, personal_total: 0, today_total: 0, roundDone: false, roundsDone: 0 } : entry));
       setNotice('已归零：今日与累计清零');
       setConfirmation(null);
     } catch (failure) {
@@ -295,9 +295,11 @@ export function PracticeLibrary() {
 
   const isRunning = (item: Practice) => item.id === lastPracticeId;
 
+  // 本轮进度：累计里已完成的轮数要先扣掉，否则「再念一次」后进度条一直满着。
   const progressOf = (item: Practice) => {
-    const done = item.targetKind === 'time' ? (item.personal_total ?? 0) / Math.max(1, item.targetSeconds) : (item.personal_total ?? 0) / Math.max(1, item.target);
-    return Math.min(100, Math.max(0, done * 100));
+    const target = item.targetKind === 'time' ? Math.max(1, item.targetSeconds) : Math.max(1, item.target);
+    const done = (item.personal_total ?? 0) - (item.roundsDone ?? 0) * target;
+    return Math.min(100, Math.max(0, (done / target) * 100));
   };
 
   const renderCard = (item: Practice) => (

@@ -36,7 +36,7 @@ export interface ContentRow {
   approved_snapshot: string | null;
   published_at: string | null;
 }
-type PracticeRow = ContentRow & { prompts: string; target: number; target_kind?: string; target_seconds?: number; idle_seconds?: number; min_seconds?: number; round_done?: number; personal_total?: number; today_total?: number; };
+type PracticeRow = ContentRow & { prompts: string; target: number; target_kind?: string; target_seconds?: number; idle_seconds?: number; min_seconds?: number; round_done?: number; rounds_done?: number; personal_total?: number; today_total?: number; };
 const personalTotalSql = 'COALESCE((SELECT total FROM counters WHERE id = practices.id), 0) AS personal_total';
 const todayTotalSql = 'COALESCE((SELECT CASE WHEN today_date = ? THEN today ELSE 0 END FROM counters WHERE id = practices.id), 0) AS today_total';
 
@@ -67,6 +67,7 @@ export function practiceFromRow(row: PracticeRow): Practice {
     targetSeconds: row.target_seconds ?? 0, idleSeconds: row.idle_seconds ?? 10,
     minSeconds: row.min_seconds ?? 300,
     roundDone: Boolean(row.round_done),
+    roundsDone: row.rounds_done ?? 0,
     personal_total: row.personal_total ?? 0,
     today_total: row.today_total ?? 0,
   };

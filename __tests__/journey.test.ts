@@ -57,8 +57,11 @@ describe('journey stats', () => {
     };
     insertPractice('count', 'count', 1800); // 1800 声 = 3600 秒
     insertPractice('timed', 'time', 600); // 600 秒
-    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e1','count','owner','e1',30,'2026-11-16','2026-11-16')").run();
-    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e2','timed','owner','e2',120,'2026-11-10','2026-11-10')").run();
+    const now = new Date(Date.now() + 8 * 3600 * 1000);
+    const todayKey = now.toISOString().slice(0, 10);
+    const weekKey = new Date(now.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e1','count','owner','e1',30,?,'2026-11-16')").run(todayKey);
+    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e2','timed','owner','e2',120,?,'2026-11-10')").run(weekKey);
     sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e3','timed','owner','e3',300,'2026-10-30','2026-10-30')").run();
     const stats = await journeyStats(db, 'owner');
     expect(stats.seconds).toBe(4680); // counters.total 已含 tap_events 的累加

@@ -19,6 +19,8 @@ export interface Practice {
   idleSeconds: number;
   minSeconds: number;
   roundDone: boolean;
+  /** 已完成的轮数（再念一次的基准）：进度条只算本轮，累计不清零。 */
+  roundsDone?: number;
   visibility: PracticeVisibility;
   source_id?: string | null;
   source_name?: string | null;
