@@ -75,6 +75,14 @@ export async function practiceRequest<Result>(path: string, method = 'GET', body
   return data as Result;
 }
 
+// 愿单封面：按名字固定取一个低饱和水墨渐变，同一个愿单每次颜色一致。
+const COVERS = ['coverMoss', 'coverPine', 'coverClay', 'coverSlate', 'coverSand', 'coverInk'];
+function coverOf(name: string): string {
+  let hash = 0;
+  for (let index = 0; index < name.length; index += 1) hash = (hash * 31 + name.charCodeAt(index)) % 997;
+  return COVERS[hash % COVERS.length];
+}
+
 export function PracticeLibrary() {
   const router = useRouter();
   const [practices, setPractices] = useState<Practice[]>([]);
@@ -95,6 +103,8 @@ export function PracticeLibrary() {
   const [menu, setMenu] = useState<Practice | null>(null);
   const [foldOpen, setFoldOpen] = useState(false);
   const [publicFoldOpen, setPublicFoldOpen] = useState(false);
+  const [allListsOpen, setAllListsOpen] = useState(false);
+  const [listQuery, setListQuery] = useState('');
 
   function showError(failure: unknown) {
     setError(failure instanceof Error ? failure.message : '操作失败');
@@ -327,10 +337,19 @@ export function PracticeLibrary() {
       </header>
       {!loading && practices.length > 0 && <p className={styles.summary}><b>{practices.length}</b>个发愿 · 今日念 {practices.reduce((sum, item) => sum + (item.targetKind === 'count' ? (item.today_total ?? 0) : 0), 0).toLocaleString()} 声</p>}
 
-      <div className={styles.chipRow} role="group" aria-label="愿单">
-        <button type="button" className={styles.listChip} aria-pressed={activeList === 'all'} disabled={busy} onClick={() => setActiveList('all')}>全部 <span>{practices.length}</span></button>
-        {wishlists.map((list) => <button key={list.id} type="button" className={styles.listChip} aria-pressed={activeList === list.id} disabled={busy} onClick={() => setActiveList(list.id)}>{list.name} <span>{list.practiceIds.length}</span></button>)}
-        <button type="button" className={styles.listAdd} title="新建愿单" aria-label="新建愿单" disabled={busy} onClick={() => { setListEditor({ name: '' }); setError(''); }}><Plus size={15} />愿单</button>
+      <div className={styles.coverRow} role="group" aria-label="愿单">
+        {wishlists.map((list) => (
+          <button key={list.id} type="button" className={`${styles.coverCard} ${styles[coverOf(list.name)]}`} aria-pressed={activeList === list.id} disabled={busy} onClick={() => setActiveList(list.id)}>
+            {activeList === list.id && <span className={styles.coverCheck}><Check size={13} /></span>}
+            <b>{list.name}</b>
+            <span className={styles.coverCount}>{list.practiceIds.length} 个</span>
+          </button>
+        ))}
+        <button type="button" className={`${styles.coverCard} ${styles.coverAll}`} disabled={busy} onClick={() => { setListQuery(''); setAllListsOpen(true); }} title="全部愿单" aria-label="全部愿单">
+          <Bookmark size={20} />
+          <b>全部愿单</b>
+          <span className={styles.coverCount}>{wishlists.length} 个</span>
+        </button>
       </div>
 
       {error && <div role="alert" className="error-message">{error}{needsLogin && <> <Link href="/login" className={styles.textLink}>登录</Link></>}<button type="button" className="icon-button" title="重新载入" aria-label="重新载入" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={17} /></button></div>}
@@ -412,6 +431,24 @@ export function PracticeLibrary() {
         {wishlists.map((list) => { const inside = list.practiceIds.includes(adding.id); return <button type="button" key={list.id} className={styles.pickRow} disabled={busy} aria-pressed={inside} onClick={() => toggleMembership(adding, list.id)}><span className={styles.grow}>{list.name}<span className={styles.meta}> · {list.practiceIds.length} 个发愿</span></span>{inside ? <Check size={17} /> : <Plus size={17} />}</button>; })}
         <button type="button" className={styles.sheetCancel} onClick={() => { setAdding(null); setListEditor({ name: '' }); }}>新建愿单</button>
         <button type="button" className={styles.sheetCancel} onClick={() => setAdding(null)}>完成</button>
+      </div>}
+      {allListsOpen && <div className={styles.scrim} onClick={() => setAllListsOpen(false)} />}
+      {allListsOpen && <div className={`${styles.sheet} ${styles.coverSheet}`} role="dialog" aria-modal="true" aria-label="全部愿单">
+        <div className={styles.sheetGrab} />
+        <div className={styles.coverSheetHead}><h2>愿单</h2><span>{wishlists.length} 个</span></div>
+        <input className={`field ${styles.coverSearch}`} placeholder="搜索愿单" value={listQuery} onChange={(event) => setListQuery(event.target.value)} />
+        <div className={styles.coverGrid}>
+          <button type="button" className={`${styles.coverTile} ${styles.coverAll} ${activeList === 'all' ? styles.coverActive : ''}`} disabled={busy} onClick={() => { setActiveList('all'); setAllListsOpen(false); }}>
+            <b>全部发愿</b><span>{practices.length} 个</span>{activeList === 'all' && <Check size={16} />}
+          </button>
+          {wishlists.filter((list) => list.name.includes(listQuery.trim())).map((list) => (
+            <button type="button" key={list.id} className={`${styles.coverTile} ${styles[coverOf(list.name)]} ${activeList === list.id ? styles.coverActive : ''}`} disabled={busy} onClick={() => { setActiveList(list.id); setAllListsOpen(false); }}>
+              <b>{list.name}</b><span>{list.practiceIds.length} 个</span>{activeList === list.id && <Check size={16} />}
+            </button>
+          ))}
+        </div>
+        <button type="button" className={styles.coverNew} disabled={busy} onClick={() => { setAllListsOpen(false); setListEditor({ name: '' }); setError(''); }}><Plus size={16} />新建愿单</button>
+        <button type="button" className={styles.sheetCancel} onClick={() => setAllListsOpen(false)}>完成</button>
       </div>}
       {listEditor && <div className={styles.scrim} onClick={() => !busy && setListEditor(null)} />}
       {listEditor && <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="愿单名称">
