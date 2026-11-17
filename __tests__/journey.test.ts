@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import { readSchemaSql, sqliteD1 } from '@/lib/local';
+import { journeyRank } from '@/lib/journey-rank';
 import { JOURNEY_HOURS, JOURNEY_LEVELS, JOURNEY_TARGETS, hm, journeyState, practiceSeconds } from '@/lib/journey';
 import { journeyStats } from '@/lib/journey-stats';
 
@@ -69,5 +70,17 @@ describe('journey stats', () => {
     expect(stats.week).toBe(180);
     expect(stats.month).toBe(180);
     sqlite.close();
+  });
+});
+
+describe('修行等级', () => {
+  it('4 星=1 月，4 月=1 日，4 日=1 冠，一轮西游一颗星', () => {
+    const run = JOURNEY_HOURS * 3600;
+    expect(journeyRank(0)).toMatchObject({ crown: 0, sun: 0, moon: 0, star: 0 });
+    expect(journeyRank(run)).toMatchObject({ crown: 0, sun: 0, moon: 0, star: 1 });
+    expect(journeyRank(run * 4)).toMatchObject({ crown: 0, sun: 0, moon: 1, star: 0 });
+    expect(journeyRank(run * 16)).toMatchObject({ crown: 0, sun: 1, moon: 0, star: 0 });
+    expect(journeyRank(run * 64)).toMatchObject({ crown: 1, sun: 0, moon: 0, star: 0 });
+    expect(journeyRank(run * 14)).toMatchObject({ crown: 0, sun: 0, moon: 3, star: 2 });
   });
 });

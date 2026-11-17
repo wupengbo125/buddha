@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Check, Lock, Sparkles, X } from 'lucide-react';
+import { Check, Crown, Lock, Moon, Sparkles, Star, Sun, X } from 'lucide-react';
 import { JOURNEY_HOURS, JOURNEY_LEVELS, JOURNEY_TARGETS, journeyState, hm } from '@/lib/journey';
+import { journeyRank } from '@/lib/journey-rank';
 import type { JourneyStats } from '@/lib/journey-stats';
 import styles from './JourneyPages.module.css';
 
 export function JourneyClient({ stats }: { stats: JourneyStats }) {
   const state = journeyState(stats.seconds);
+  const rank = journeyRank(stats.seconds);
   const [celebrating, setCelebrating] = useState<number | null>(null);
 
   useEffect(() => {
@@ -32,6 +34,13 @@ export function JourneyClient({ stats }: { stats: JourneyStats }) {
         <div><p className="eyebrow">修行里程</p><h1 className="page-title">西游取经</h1></div>
         <Link href="/practices" className={styles.link}>我的发愿</Link>
       </header>
+
+      <div className={styles.rank} aria-label="修行等级">
+        {Array.from({ length: rank.crown }, (_, index) => <Crown key={`crown-${index}`} size={18} aria-hidden />)}
+        {Array.from({ length: rank.sun }, (_, index) => <Sun key={`sun-${index}`} size={18} aria-hidden />)}
+        {Array.from({ length: rank.moon }, (_, index) => <Moon key={`moon-${index}`} size={18} aria-hidden />)}
+        {Array.from({ length: rank.star }, (_, index) => <Star key={`star-${index}`} size={18} aria-hidden />)}
+      </div>
 
       {state.completed ? <section className={styles.hero}>
         <img className={styles.heroImage} src={JOURNEY_LEVELS[JOURNEY_LEVELS.length - 1].image} alt="" />
