@@ -22,7 +22,7 @@ export function prefersReducedMotion(): boolean {
 let audioCtx: AudioContext | null = null;
 let woodenFishBuffer: AudioBuffer | null = null;
 let chimeBuffer: AudioBuffer | null = null;
-let chimeDataPromise: Promise<ArrayBuffer | null> | null = typeof window !== 'undefined' ? fetch('/attention-chime.wav').then((r) => r.arrayBuffer() as Promise<ArrayBuffer>).catch(() => null) : null;
+let chimeDataPromise: Promise<ArrayBuffer | null> | null = typeof window !== 'undefined' ? fetch('/bowl-low.wav').then((r) => r.arrayBuffer() as Promise<ArrayBuffer>).catch(() => null) : null;
 let iosAudioUnlocked = false;
 let audioDataPromise: Promise<ArrayBuffer | null> | null =
   typeof window !== 'undefined'
@@ -125,8 +125,10 @@ export function playAttentionChime(): void {
     if (ac.state === 'suspended') ac.resume().catch(() => {});
     if (chimeBuffer) {
       const src = ac.createBufferSource();
+      const gain = ac.createGain();
+      gain.gain.value = 0.55;
       src.buffer = chimeBuffer;
-      src.connect(ac.destination);
+      src.connect(gain).connect(ac.destination);
       src.start();
       return;
     }
@@ -138,8 +140,10 @@ export function playAttentionChime(): void {
           chimeBuffer = decoded;
           if (ac.state === 'closed') return;
           const src = ac.createBufferSource();
+          const gain = ac.createGain();
+          gain.gain.value = 0.55;
           src.buffer = decoded;
-          src.connect(ac.destination);
+          src.connect(gain).connect(ac.destination);
           src.start();
         })
         .catch(() => {});
