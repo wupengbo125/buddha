@@ -11,6 +11,8 @@ export interface Settings {
   captionMs: number;
   timeZone: string;
   soundEnabled: boolean; // 全局总开关：false 时任何计数器都不响（一键全关）
+  /** 别走神：0=关，1/2/3=约 N 分钟的 80%–120% 随机出现一次提醒。 */
+  attentionLevel: number;
 }
 
 const SETTINGS_KEY = `${storageNamespace}:settings`;
@@ -20,8 +22,13 @@ export function clampCaptionMs(value: number): number {
   return Math.min(CAPTION_MAX_MS, Math.max(CAPTION_MIN_MS, Math.round(value)));
 }
 
+export function clampAttentionLevel(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(3, Math.max(0, Math.round(value)));
+}
+
 export function defaultSettings(): Settings {
-  return { captionMs: CAPTION_DEFAULT_MS, timeZone: DEFAULT_TIMEZONE, soundEnabled: true };
+  return { captionMs: CAPTION_DEFAULT_MS, timeZone: DEFAULT_TIMEZONE, soundEnabled: true, attentionLevel: 0 };
 }
 
 export function loadSettings(): Settings {
@@ -35,6 +42,7 @@ export function loadSettings(): Settings {
       timeZone: typeof parsed.timeZone === 'string' && parsed.timeZone ? parsed.timeZone : DEFAULT_TIMEZONE,
       // 老数据缺字段时默认开；仅显式 false 才关。
       soundEnabled: parsed.soundEnabled !== false,
+      attentionLevel: clampAttentionLevel(Number(parsed.attentionLevel)),
     };
   } catch {
     return defaultSettings();

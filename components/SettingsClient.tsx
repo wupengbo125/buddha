@@ -8,6 +8,7 @@ import { applyTheme, readTheme, resolveTheme, saveTheme, type Theme } from '@/li
 import {
   CAPTION_MIN_MS,
   CAPTION_MAX_MS,
+  clampAttentionLevel,
   clampCaptionMs,
   defaultSettings,
   loadSettings,
@@ -65,6 +66,7 @@ export function SettingsClient() {
       captionMs: p.captionMs !== undefined ? clampCaptionMs(p.captionMs) : clampCaptionMs(settings.captionMs),
       timeZone: p.timeZone !== undefined ? p.timeZone : settings.timeZone,
       soundEnabled: p.soundEnabled !== undefined ? p.soundEnabled : settings.soundEnabled,
+      attentionLevel: p.attentionLevel !== undefined ? clampAttentionLevel(p.attentionLevel) : clampAttentionLevel(settings.attentionLevel),
     };
     setSettings(next);
     saveSettings(next);
@@ -118,6 +120,17 @@ export function SettingsClient() {
             onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} list="timezone-list" className="field" />
           <datalist id="timezone-list"><option value="Asia/Shanghai" /><option value="Asia/Tokyo" /><option value="UTC" /><option value="America/Los_Angeles" /></datalist>
         </label>
+        <div className="mt-5">
+          <span className="field-label">别走神</span>
+          <p className="mb-3 text-xs text-muted">开了以后，每隔一段时间木鱼周围随机出现一朵小莲花，点掉才继续；没点掉时不计时、不计数。</p>
+          <div className="segmented" role="group" aria-label="别走神">
+            {[0, 1, 2, 3].map((level) => (
+              <button key={level} type="button" onClick={() => patch({ attentionLevel: level })} aria-pressed={settings.attentionLevel === level}>
+                {level === 0 ? '关' : `${level} 分`}
+              </button>
+            ))}
+          </div>
+        </div>
         {error && <p className="error-message" role="alert">{error}</p>}
         {timeZoneSaved && !error && <p className="mt-3 text-xs text-muted" role="status">时区已保存</p>}
       </section>

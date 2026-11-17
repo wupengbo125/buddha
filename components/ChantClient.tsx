@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Volume2, VolumeX } from 'lucide-react';
+import { Flower2, Plus, Volume2, VolumeX } from 'lucide-react';
 import { createState } from '@/lib/counter-store';
 import { storageNamespace } from '@/lib/brand';
 import { loadSettings, saveSettings } from '@/lib/settings';
@@ -12,6 +12,13 @@ import { WoodenFish } from './WoodenFish';
 import { ChantCounts } from './ChantCounts';
 import { ChantReporter, reportDisplayAmount, type PendingChantReport } from '@/lib/chant-report';
 import { attentionDelay } from '@/lib/attention';
+
+// 莲花只出现在木鱼周围的空白处，每次随机，防止肌肉记忆直接点掉。
+const ATTENTION_SPOTS = [
+  { top: '8%', left: '10%' }, { top: '6%', left: '50%' }, { top: '10%', left: '82%' },
+  { top: '46%', left: '5%' }, { top: '46%', left: '88%' },
+  { top: '78%', left: '12%' }, { top: '82%', left: '48%' }, { top: '76%', left: '80%' },
+];
 import { playAttentionChime } from '@/lib/sound';
 import { useChant } from './useChant';
 import { useChantSession } from './useChantSession';
@@ -49,6 +56,7 @@ export function ChantClient() {
 
   // 时长模式：本次是真实流动的时间；敲击只判断超时是否清零、满一分钟是否上报；今日/累计只显示已上报的整分钟。
   // 次数模式：同一套会话骨架，攒满「最少坚持」声上报一批，零头作废。
+  const attentionLevel = loadSettings().attentionLevel;
   const isTime = selected?.target_kind === 'time';
   const idleSeconds = Math.min(60, Math.max(1, selected?.idle_seconds ?? 10));
   const baseToday = state?.today ?? 0;
@@ -59,6 +67,7 @@ export function ChantClient() {
   const [syncError, setSyncError] = useState('');
   // 专注提醒：随机 3–5 分钟出现一个点，点掉才继续；出现期间时间/次数冻结。
   const [attention, setAttention] = useState(false);
+  const [attentionSpot, setAttentionSpot] = useState(0);
   const nextCheckRef = useRef<number | null>(null);
   // 次数模式按每次 2 秒折算，时长模式按分钟×60；否则界面上只加了几秒，看起来没动。
   const pendingFor = (counterId: string) => Object.values(pending)
@@ -149,23 +158,30 @@ export function ChantClient() {
 
   // 专注提醒调度：只在正在念诵时计时；超时停表或提醒未点掉时都不推进。
   useEffect(() => {
+    if (!attentionLevel) { nextCheckRef.current = null; if (attention) setAttention(false); return; }
     if (chant.paused) { nextCheckRef.current = null; if (attention) setAttention(false); return; }
     if (attention) return;
-    if (nextCheckRef.current === null) nextCheckRef.current = Date.now() + attentionDelay();
+    if (nextCheckRef.current === null) {
+      const delay = attentionDelay(attentionLevel);
+      if (delay === null) return;
+      nextCheckRef.current = Date.now() + delay;
+    }
     const timer = setInterval(() => {
       if (nextCheckRef.current !== null && Date.now() >= nextCheckRef.current) {
         nextCheckRef.current = null;
         chant.hold();
+        setAttentionSpot(Math.floor(Math.random() * ATTENTION_SPOTS.length));
         setAttention(true);
       }
     }, 1000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chant.paused, attention, selected?.id]);
+  }, [chant.paused, attention, attentionLevel, selected?.id]);
 
   const dismissAttention = () => {
     chant.resumeHold();
-    nextCheckRef.current = Date.now() + attentionDelay();
+    const delay = attentionDelay(attentionLevel);
+    nextCheckRef.current = delay === null ? null : Date.now() + delay;
     setAttention(false);
   };
 
@@ -219,7 +235,7 @@ export function ChantClient() {
               <div className="chant-caption" aria-live="off">
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
-              {attention && <button type="button" className="attention-dot" aria-label="点一下继续念诵" onClick={dismissAttention}><i /></button>}
+              {attention && <button type="button" className="attention-dot" style={ATTENTION_SPOTS[attentionSpot]} aria-label="点一下继续念诵" onClick={dismissAttention}><Flower2 size={18} /></button>}
               <WoodenFish onTap={() => {
                 // 提醒点没点掉：只响一声磬，不计数、不加时，让人立刻发现要回来点。
                 if (attention) { if (soundEnabled) playAttentionChime(); return; }

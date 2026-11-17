@@ -145,9 +145,6 @@
 /* 专注提醒点：出现在木鱼上方，点掉才继续；期间时间与次数冻结。 */
 .attention-dot {
   position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
   width: 26px;
   height: 26px;
   padding: 0;
@@ -160,7 +157,7 @@
   z-index: 3;
   animation: attention-breath 1.8s ease-in-out infinite;
 }
-.attention-dot i { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--c-bg)); }
+.attention-dot svg { width: 18px; height: 18px; color: rgb(var(--c-bg)); }
 @keyframes attention-breath {
   0%, 100% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / .38); opacity: .85; }
   50% { box-shadow: 0 0 0 12px rgb(var(--c-accent) / 0); opacity: 1; }
