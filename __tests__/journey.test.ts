@@ -65,7 +65,7 @@ describe('journey stats', () => {
     sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e2','timed','owner','e2',120,?,'2026-11-10')").run(weekKey);
     sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e3','timed','owner','e3',300,'2026-10-30','2026-10-30')").run();
     const stats = await journeyStats(db, 'owner');
-    expect(stats.seconds).toBe(4680); // counters.total 已含 tap_events 的累加
+    expect(stats.seconds).toBe(480); // 30×2 + 120 + 300，历史只按打卡流水算，归零不倒退
     expect(stats.today).toBe(60);
     expect(stats.week).toBe(180);
     expect(stats.month).toBe(180);
