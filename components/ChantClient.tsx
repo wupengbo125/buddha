@@ -170,7 +170,7 @@ export function ChantClient() {
     const timer = setInterval(() => {
       if (nextCheckRef.current !== null && Date.now() >= nextCheckRef.current) {
         nextCheckRef.current = null;
-        chant.hold();
+        // 莲花出现不再冻结时间：秒表照走，只是不计数、响钵音，防止借机离开。
         setAttentionSpot(Math.floor(Math.random() * ATTENTION_SPOTS.length));
         setAttention(true);
       }
@@ -180,7 +180,6 @@ export function ChantClient() {
   }, [chant.paused, attention, attentionLevel, selected?.id]);
 
   const dismissAttention = () => {
-    chant.resumeHold();
     const delay = attentionDelay(attentionLevel);
     nextCheckRef.current = delay === null ? null : Date.now() + delay;
     setAttention(false);

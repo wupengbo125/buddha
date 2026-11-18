@@ -15,12 +15,8 @@ export type ChantSession = {
   taps: number;
   /** true = 停表（超时或作废后），渲染置灰。 */
   paused: boolean;
-  /** true = 专注提醒点未点掉：时间/次数冻结，但不置灰。 */
-  held: boolean;
-  /** 冻结（点出现）。 */
-  hold: () => void;
-  /** 点掉后从冻住处继续。 */
-  resumeHold: () => void;
+
+
   /** 时间模式：时钟每秒把当前秒数喂进来做上报判断；次数模式在 tap 内部判断。 */
   evaluate: (seconds: number) => void;
   /** 时间模式：本次已流动的真实秒数（停表为 0）。 */
@@ -39,13 +35,13 @@ export function useChantSession(options: {
   counted?: boolean;
 }): ChantSession {
   const { idleSeconds, threshold, onBatch, counted } = options;
-  const ref = useRef({ startAt: null as number | null, lastTapAt: null as number | null, taps: 0, reported: 0, heldAt: null as number | null });
+  const ref = useRef({ startAt: null as number | null, lastTapAt: null as number | null, taps: 0, reported: 0 });
   const [paused, setPaused] = useState(true);
   const [, bump] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stop = () => {
-    ref.current = { startAt: null, lastTapAt: null, taps: 0, reported: 0, heldAt: null };
+    ref.current = { startAt: null, lastTapAt: null, taps: 0, reported: 0 };
     setPaused(true);
     bump((value) => value + 1);
   };
@@ -69,13 +65,12 @@ export function useChantSession(options: {
   };
 
   const tap = () => {
-    if (ref.current.heldAt !== null) return; // 专注提醒未点掉：不计数、不续超时
     const now = Date.now();
     if (timerRef.current) clearTimeout(timerRef.current);
     const gap = ref.current.lastTapAt === null ? Infinity : now - ref.current.lastTapAt;
     if (ref.current.startAt === null || gap > idleSeconds * 1000) {
       // 本次还没开始，或隔太久才敲：本次整段作废，从现在重新开始。
-      ref.current = { startAt: now, lastTapAt: now, taps: 0, reported: 0, heldAt: null };
+      ref.current = { startAt: now, lastTapAt: now, taps: 0, reported: 0 };
       setPaused(false);
     } else {
       ref.current.lastTapAt = now;
@@ -93,31 +88,7 @@ export function useChantSession(options: {
     stop();
   };
 
-  // 冻结期间秒表停在提醒点出现的那一刻；点掉后把起点整体后移，暂停的那段不算念诵时间。
-  const seconds = () => {
-    const { startAt, heldAt } = ref.current;
-    if (startAt === null) return 0;
-    return ((heldAt ?? Date.now()) - startAt) / 1000;
-  };
-
-  const hold = () => {
-    if (ref.current.startAt === null || ref.current.heldAt !== null) return;
-    ref.current.heldAt = Date.now();
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    bump((value) => value + 1);
-  };
-
-  const resumeHold = () => {
-    const heldAt = ref.current.heldAt;
-    if (heldAt === null) return;
-    const now = Date.now();
-    if (ref.current.startAt !== null) ref.current.startAt += now - heldAt;
-    ref.current.lastTapAt = now;
-    ref.current.heldAt = null;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(stop, idleSeconds * 1000);
-    bump((value) => value + 1);
-  };
+  const seconds = () => (ref.current.startAt === null ? 0 : (Date.now() - ref.current.startAt) / 1000);
 
   // 页面被隐藏 / 关闭：未上报的本地累计直接作废。
   useEffect(() => {
@@ -132,5 +103,5 @@ export function useChantSession(options: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idleSeconds]);
 
-  return { tap, taps: ref.current.taps, paused, held: ref.current.heldAt !== null, hold, resumeHold, evaluate, discard, seconds };
+  return { tap, taps: ref.current.taps, paused, evaluate, discard, seconds };
 }
