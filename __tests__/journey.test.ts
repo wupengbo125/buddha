@@ -69,6 +69,10 @@ describe('journey stats', () => {
     expect(stats.today).toBe(60);
     expect(stats.week).toBe(180);
     expect(stats.month).toBe(180);
+    // 删除发愿会清掉它的打卡流水，但西游总账不受影响。
+    sqlite.prepare("DELETE FROM practices WHERE id = 'count'").run();
+    const after = await journeyStats(db, 'owner');
+    expect(after.seconds).toBe(480);
     sqlite.close();
   });
 });

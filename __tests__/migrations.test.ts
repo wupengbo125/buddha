@@ -9,7 +9,7 @@ const schemaSql = files.map((f) => fs.readFileSync(path.join(migrationsDir, f), 
 
 describe('迁移按序读取', () => {
   it('线上收敛为单一终态 0001，后续迁移按文件名追加', () => {
-    expect(files).toEqual(['0001_init.sql', '0002_reordered_practice_runs.sql', '0003_wishlists.sql', '0004_rounds_done.sql']);
+    expect(files).toEqual(['0001_init.sql', '0002_reordered_practice_runs.sql', '0003_wishlists.sql', '0004_rounds_done.sql', '0005_journey_ledger.sql']);
   });
 
   it('0001 是完整终态，直接含 sound_enabled 与 practices 体系', () => {

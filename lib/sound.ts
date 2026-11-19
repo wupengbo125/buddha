@@ -81,6 +81,10 @@ function getAudioContext(): AudioContext | null {
           if (decoded) woodenFishBuffer = decoded;
         })
         .catch(() => {});
+      // 钵音也提前解码好，别等莲花出现那一下才现拉现解，弱网时会没声。
+      chimeDataPromise?.then((buf) => (buf && audioCtx ? audioCtx.decodeAudioData(buf.slice(0)) : null))
+        .then((decoded) => { if (decoded) chimeBuffer = decoded; })
+        .catch(() => { chimeDataPromise = null; });
     }
     return audioCtx;
   } catch {
@@ -132,11 +136,15 @@ export function playAttentionChime(): void {
       src.start();
       return;
     }
+    // 首次加载失败（弱网/离线）时 promise 为 null：这里补一次拉取，避免从此永远没声。
+    if (!chimeDataPromise && typeof window !== 'undefined') {
+      chimeDataPromise = fetch('/bowl-low.wav').then((r) => r.arrayBuffer() as Promise<ArrayBuffer>).catch(() => null);
+    }
     if (chimeDataPromise) {
       chimeDataPromise
         .then((buf) => buf && ac.decodeAudioData(buf.slice(0)))
         .then((decoded) => {
-          if (!decoded) return;
+          if (!decoded) { chimeDataPromise = null; return; }
           chimeBuffer = decoded;
           if (ac.state === 'closed') return;
           const src = ac.createBufferSource();
@@ -146,7 +154,7 @@ export function playAttentionChime(): void {
           src.connect(gain).connect(ac.destination);
           src.start();
         })
-        .catch(() => {});
+        .catch(() => { chimeDataPromise = null; });
     }
   } catch {
     /* 静默 */
