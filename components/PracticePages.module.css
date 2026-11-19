@@ -52,6 +52,8 @@ button.rowMain { display: block; width: 100%; padding: 0; border: 0; background:
 .badge[data-status='public'] { color: rgb(var(--c-accent)); }
 .badge[data-status='rejected'] { color: rgb(var(--c-danger)); }
 .description { color: rgb(var(--c-ink-soft)); font-size: 13px; line-height: 1.6; margin: 4px 0; white-space: pre-wrap; }
+/* 广场列表里简介最多两行，长简介进详情页看全文，卡片高度才一致。 */
+.descClamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .danger { color: rgb(var(--c-danger)); }
 .textLink { color: rgb(var(--c-accent)); display: inline-flex; align-items: center; gap: 5px; min-height: 44px; font-size: 13px; overflow-wrap: anywhere; }
 .reviewLinks { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; margin-top: 8px; }
