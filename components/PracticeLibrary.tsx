@@ -103,7 +103,6 @@ export function PracticeLibrary() {
   const [confirmation, setConfirmation] = useState<{ item: Practice; action: 'delete' | 'restart' | 'zero' } | null>(null);
   const [menu, setMenu] = useState<Practice | null>(null);
   const [foldOpen, setFoldOpen] = useState(false);
-  const [publicFoldOpen, setPublicFoldOpen] = useState(false);
   const [allListsOpen, setAllListsOpen] = useState(false);
   const [listQuery, setListQuery] = useState('');
 
@@ -142,8 +141,7 @@ export function PracticeLibrary() {
   const activeListIds = activeList === 'all' ? null : new Set(wishlists.find((list) => list.id === activeList)?.practiceIds ?? []);
   const visible = activeListIds ? practices.filter((entry) => activeListIds.has(entry.id)) : practices;
   const foldDone = visible.filter((entry) => Boolean(entry.roundDone));
-  const statusFold = visible.filter((entry) => entry.visibility === 'public' && !entry.roundDone);
-  const items = visible.filter((entry) => entry.visibility !== 'public' && !entry.roundDone);
+  const items = visible.filter((entry) => !entry.roundDone);
   const editingItem = editor?.id ? practices.find((entry) => entry.id === editor.id) : undefined;
 
   async function save(event: React.FormEvent) {
@@ -317,7 +315,7 @@ export function PracticeLibrary() {
     <li className={`${styles.contentRow} ${isRunning(item) ? styles.runningRow : ''}`} key={item.id}>
       <div className={styles.rowHeading}>
         <button type="button" className={styles.rowMain} aria-expanded={expanded === item.id} disabled={busy} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}>
-          <h2 className={styles.contentTitle}>{item.name}</h2>
+          <div className={styles.rowTitleLine}><h2 className={styles.contentTitle}>{item.name}</h2>{item.visibility === 'public' && <span className={styles.publicBadge} title="已公开到广场" aria-label="已公开">P</span>}</div>
           <p className={`${styles.rowMeta} ${isRunning(item) ? styles.rowMetaRunning : ''}`}>{item.targetKind === 'time' ? `今日 ${durationLabel(item.today_total ?? 0)} · 累计 ${durationLabel(item.personal_total ?? 0)} · 目标 ${durationLabel(item.targetSeconds)}` : `今日 ${(item.today_total ?? 0).toLocaleString()} · 累计 ${(item.personal_total ?? 0).toLocaleString()} · 目标 ${item.target.toLocaleString()}`}</p>
         </button>
         <div className={styles.cardButtons}>
@@ -402,12 +400,8 @@ export function PracticeLibrary() {
 
       {confirmation && <div className={styles.confirmOverlay} onClick={() => !busy && setConfirmation(null)}><section className={styles.confirmation} onClick={(event) => event.stopPropagation()} aria-labelledby="confirmation-title"><h2 id="confirmation-title">{confirmation.action === 'delete' ? '删除' : confirmation.action === 'zero' ? '归零' : '再念一次'}「{confirmation.item.name}」？</h2><p>{confirmation.action === 'delete' ? '发愿将被删除。' : confirmation.action === 'zero' ? '今日与累计都会清零，进度条从头开始。' : '回到未完成，可以重新念一轮；今日与累计不清零。'}</p><div className={styles.actions}><button type="button" disabled={busy} className="secondary-button" onClick={() => setConfirmation(null)}>取消</button><button type="button" disabled={busy} className="primary-button" onClick={() => confirmation.action === 'delete' ? mutate(confirmation.item, 'delete') : confirmation.action === 'zero' ? zeroPractice(confirmation.item) : restartRound(confirmation.item)}>{confirmation.action === 'delete' ? <Trash2 size={17} /> : <RotateCcw size={17} />}{busy ? '正在处理...' : '确认'}</button></div></section></div>}
 
-      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && statusFold.length === 0 && !error ? <div className="empty-state"><p>{activeList === 'all' ? '暂无发愿' : '这个愿单里还没有发愿'}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增发愿</button></div> : (
+      {loading ? <p role="status" className="empty-state">正在载入...</p> : items.length === 0 && foldDone.length === 0 && !error ? <div className="empty-state"><p>{activeList === 'all' ? '暂无发愿' : '这个愿单里还没有发愿'}</p><button className="secondary-button" type="button" onClick={() => setEditor(makeEditor())}><Plus size={17} />新增发愿</button></div> : (
         <>
-          {statusFold.length > 0 && <section className={styles.fold}>
-            <button type="button" className={styles.foldHead} aria-expanded={publicFoldOpen} onClick={() => setPublicFoldOpen((value) => !value)}><span>公开 · {statusFold.length}</span><span>{publicFoldOpen ? '收起' : '展开'}{publicFoldOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>
-            {publicFoldOpen && <ul className={`${styles.contentList} ${styles.foldBody}`}>{statusFold.map(renderCard)}</ul>}
-          </section>}
           <ul className={styles.contentList}>{items.map(renderCard)}</ul>
         </>
       )}

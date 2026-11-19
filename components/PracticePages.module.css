@@ -37,6 +37,8 @@
 .contentRow { position: relative; padding: 15px 16px 14px; border: 1px solid var(--c-line); border-radius: 14px; background: rgb(var(--c-surface) / .55); transition: border-color .2s ease, background .2s ease; }
 .contentRow:hover { border-color: rgb(var(--c-accent) / .3); background: rgb(var(--c-surface) / .8); }
 .runningRow { border-color: rgb(var(--c-accent) / .45); background: linear-gradient(110deg, rgb(var(--c-accent-soft) / .7), rgb(var(--c-surface) / .5) 62%); }
+.rowTitleLine { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.publicBadge { flex: none; width: 17px; height: 17px; border-radius: 9px; display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1; color: rgb(var(--c-accent)); border: 1px solid rgb(var(--c-accent) / .45); background: rgb(var(--c-accent) / .08); }
 .rowHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rowMain { min-width: 0; }
 button.rowMain { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
