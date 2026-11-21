@@ -119,7 +119,7 @@ describe('practice API', () => {
     await detail.POST(request(`practices/${source.id}`, 'POST', { action: 'publish' }), context(source.id));
     state.owner = 'friend';
     const copied = await readJson<Practice>(detail.POST(request(`practices/${source.id}`, 'POST', { action: 'copy' }), context(source.id)));
-    expect(copied).toMatchObject({ owner_id: 'friend', source_id: source.id, source_name: 'shared', personal_total: 0, visibility: 'private' });
+    expect(copied).toMatchObject({ owner_id: 'friend', source_id: source.id, source_name: null, personal_total: 0, visibility: 'private' });
   });
 
   it('copies an own private practice without publishing it first', async () => {

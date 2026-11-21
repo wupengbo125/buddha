@@ -19,7 +19,7 @@ export async function copyContent(db: D1Database, sourceId: string, owner: strin
   const id = ulid();
   const statements: D1PreparedStatement[] = [
     db.prepare(`INSERT INTO practices(id, owner_id, name, description, prompts, target, target_kind, target_seconds, idle_seconds, min_seconds, source_id, source_name, source_owner_id, created_at, updated_at)
-      SELECT ?, ?, json_extract(value, '$.name'), json_extract(value, '$.description'), json_extract(value, '$.prompts'), json_extract(value, '$.target'), COALESCE(json_extract(value, '$.targetKind'), 'count'), COALESCE(json_extract(value, '$.targetSeconds'), 0), COALESCE(json_extract(value, '$.idleSeconds'), 10), COALESCE(json_extract(value, '$.minSeconds'), 300), json_extract(value, '$.id'), json_extract(value, '$.name'), json_extract(value, '$.owner_id'), ?, ? FROM json_each(?) WHERE ${sourceGuard}`)
+      SELECT ?, ?, json_extract(value, '$.name'), json_extract(value, '$.description'), json_extract(value, '$.prompts'), json_extract(value, '$.target'), COALESCE(json_extract(value, '$.targetKind'), 'count'), COALESCE(json_extract(value, '$.targetSeconds'), 0), COALESCE(json_extract(value, '$.idleSeconds'), 10), COALESCE(json_extract(value, '$.minSeconds'), 300), json_extract(value, '$.id'), NULL, json_extract(value, '$.owner_id'), ?, ? FROM json_each(?) WHERE ${sourceGuard}`)
       .bind(id, owner, now, now, JSON.stringify([{ ...source, id: source.id }]), ...guardParams),
   ];
   await atomic(db, statements);
