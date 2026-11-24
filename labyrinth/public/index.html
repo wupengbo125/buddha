@@ -68,7 +68,8 @@
   const S = {
     W:0,H:0,dpr:1, x:0,y:0,ang:0,prevX:0,prevY:0, t:0,
     run:false, holding:false, t0:0, elapsed:0, following:false,
-    lostSince:0, best:0, lastHud:0, msgs:[], finger:{x:-999,y:-999}
+    lostSince:0, best:0, lastHud:0, msgs:[], finger:{x:-999,y:-999},
+    trail:[], grid:new Map(), tx:0, ty:0, len:0
   };
 
   function setup(){
@@ -100,32 +101,76 @@
     S.x=S.W/2+(Math.random()-0.5)*S.W*0.3;
     S.y=S.H-START_GAP;
     S.ang=-Math.PI/2+(Math.random()-0.5)*0.8;
-    S.prevX=S.x;S.prevY=S.y;S.t=0;S.elapsed=0;S.following=false;S.lostSince=0;S.run=false;S.msgs=[];S.t0=0;
+    S.prevX=S.x;S.prevY=S.y;S.tx=S.x;S.ty=S.y;S.trail=[];S.grid=new Map();S.len=0;S.t=0;S.elapsed=0;S.following=false;S.lostSince=0;S.run=false;S.msgs=[];S.t0=0;
     lnx.setTransform(S.dpr,0,0,S.dpr,0,0);
     lnx.clearRect(0,0,S.W,S.H);
     timerEl.textContent='00:00';
   }
 
-  function steer(dt){
-    S.ang += (0.72*Math.sin(S.t*0.83)+0.42*Math.sin(S.t*0.31+2.1)+0.18*Math.sin(S.t*1.7+0.7))*dt;
-    let ax=Math.cos(S.ang), ay=Math.sin(S.ang);
-    // 整体偏好向上推进，形成一条不断向前游走的长线
-    ay -= 0.42;
-    // 贴近边界时朝屏幕中心拐回，避免贴着边走直线
-    const dEdge = Math.min(S.x - MARGIN, S.W - MARGIN - S.x, S.y - MARGIN, S.H - MARGIN - S.y);
-    if (dEdge < 110) {
-      const w = Math.min(3.6, (110 - dEdge) / 110 * 3.6);
-      const cx = S.W / 2, cy = S.H / 2;
-      const dx = cx - S.x, dy = cy - S.y;
-      const dl = Math.hypot(dx, dy) || 1;
-      ax += (dx / dl) * w;
-      ay += (dy / dl) * w;
+  const CELL = 56;
+
+  function addTrail(x,y){
+    const k = Math.floor(x/CELL)+':'+Math.floor(y/CELL);
+    let a = S.grid.get(k);
+    if(!a){ a=[]; S.grid.set(k,a); }
+    S.trail.push({x,y});
+    a.push(S.trail.length-1);
+  }
+
+  function nearestTrail(){
+    if(S.trail.length < 90) return null;
+    const i0=Math.floor(S.x/CELL), j0=Math.floor(S.y/CELL);
+    let bx=0, by=0, bd=1e9;
+    for(let i=i0-1;i<=i0+1;i++){
+      for(let j=j0-1;j<=j0+1;j++){
+        const arr=S.grid.get(i+':'+j);
+        if(!arr) continue;
+        for(const idx of arr){
+          if(idx > S.trail.length-60) continue;
+          const p=S.trail[idx];
+          const d=Math.hypot(p.x-S.x,p.y-S.y);
+          if(d<bd){ bd=d; bx=p.x; by=p.y; }
+        }
+      }
     }
-    const target=Math.atan2(ay,ax);
-    let d=target-S.ang;
+    return bd < 56 ? {d:bd,x:bx,y:by} : null;
+  }
+
+  function wrap(d){
     while(d>Math.PI) d-=Math.PI*2;
     while(d<-Math.PI) d+=Math.PI*2;
-    S.ang += d*Math.min(1,dt*3.6);
+    return d;
+  }
+
+  function steer(dt){
+    // 1) 有界的左右摆动：只来回摆，不让角度单向累积成圈
+    S.ang += (0.62*Math.sin(S.t*0.74)+0.32*Math.sin(S.t*0.29+2.0))*dt;
+
+    // 2) 整体向前推进：一旦往下走得多，就慢慢掰回水平
+    const sy=Math.sin(S.ang);
+    if(sy > 0.10){
+      const horiz = Math.cos(S.ang) >= 0 ? 0 : Math.PI;
+      S.ang += wrap(horiz-S.ang)*Math.min(1,dt*1.5)*Math.min(1,sy*2);
+    }
+
+    // 3) 边界反射：撞上就折回，不再被吸着绕圈
+    const c=Math.cos(S.ang), sn=Math.sin(S.ang);
+    let rx=c, ry=sn;
+    if(S.x<MARGIN && c<0) rx=-c;
+    if(S.x>S.W-MARGIN && c>0) rx=-c;
+    if(S.y<MARGIN && sn<0) ry=-sn;
+    if(S.y>S.H-MARGIN && sn>0) ry=-sn;
+    if(rx!==c || ry!==sn){
+      S.ang += wrap(Math.atan2(ry,rx)-S.ang)*Math.min(1,dt*5);
+    }
+
+    // 4) 自避让：贴近自己画过的线就绕开，永远不叠成一团
+    const near=nearestTrail();
+    if(near){
+      const away=Math.atan2(S.y-near.y, S.x-near.x);
+      const w=Math.max(0,1-near.d/56);
+      S.ang += wrap(away-S.ang)*Math.min(1,dt*2.4)*w;
+    }
   }
 
   function advance(dt){
@@ -135,12 +180,22 @@
     S.prevX=S.x;S.prevY=S.y;
     S.x+=Math.cos(S.ang)*step;
     S.y+=Math.sin(S.ang)*step;
+    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang); }
+    if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang); }
+    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang); }
+    if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang); }
+    S.len += step;
     lnx.beginPath();
     lnx.lineCap='round';lnx.lineJoin='round';
     lnx.strokeStyle=INK;lnx.lineWidth=3.2;
     lnx.moveTo(S.prevX,S.prevY);
     lnx.lineTo(S.x,S.y);
     lnx.stroke();
+
+    if(Math.hypot(S.x-S.tx, S.y-S.ty) > 4){
+      addTrail(S.x, S.y);
+      S.tx=S.x; S.ty=S.y;
+    }
   }
 
   let last=0;
@@ -158,6 +213,7 @@
       if(!S.run){S.run=true; if(!S.t0) S.t0=now;}
       steer(dt); advance(dt);
       S.elapsed+=dt;
+      if(S.len > 4600){ finishPage(); }
     }else{
       if(S.following){S.following=false;S.lostSince=now;}
       if(!S.holding && S.lostSince && now-S.lostSince>LOST_MS) endRun();
@@ -167,6 +223,16 @@
     drawFx(ts, inRange);
     hud(now);
     requestAnimationFrame(loop);
+  }
+
+  function finishPage(){
+    if(S.elapsed>0.5 && S.elapsed>S.best){
+      S.best=S.elapsed;
+      try{localStorage.setItem('line.best',String(S.best));}catch(e){}
+      bestEl.textContent='最佳 '+fmt(S.best);
+    }
+    hint('这一张走满了。停一下，好，再来一张。','calm');
+    restart();
   }
 
   function endRun(){
