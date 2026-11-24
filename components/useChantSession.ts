@@ -23,6 +23,8 @@ export type ChantSession = {
   seconds: () => number;
   /** 丢弃本地零头（切走/关闭时）。 */
   discard: () => void;
+  /** 莲花期间的敲击：不计数，但证明人还在，续上超时计时。 */
+  touch: () => void;
 };
 
 export function useChantSession(options: {
@@ -83,6 +85,13 @@ export function useChantSession(options: {
     timerRef.current = setTimeout(stop, idleSeconds * 1000);
   };
 
+  const touch = () => {
+    if (ref.current.startAt === null) return;
+    ref.current.lastTapAt = Date.now();
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(stop, idleSeconds * 1000);
+  };
+
   const discard = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     stop();
@@ -103,5 +112,5 @@ export function useChantSession(options: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idleSeconds]);
 
-  return { tap, taps: ref.current.taps, paused, evaluate, discard, seconds };
+  return { tap, taps: ref.current.taps, paused, evaluate, discard, touch, seconds };
 }
