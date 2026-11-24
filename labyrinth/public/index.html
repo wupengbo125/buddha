@@ -19,16 +19,14 @@
   body{
     background:var(--paper);
     color:var(--ink);
-    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;
+    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
     display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     touch-action:none;user-select:none;-webkit-user-select:none;
     transition:background .3s,color .3s;
   }
-  header{flex:0 0 auto;height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 18px}
-  .brand{font-size:14px;font-weight:500;letter-spacing:.04em}
-  .brand small{font-size:11px;color:var(--ink-soft);margin-left:8px;letter-spacing:.02em}
-  .meta{display:flex;gap:16px;font-size:13px;font-weight:400;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  header{flex:0 0 auto;height:46px;position:relative;padding:0 18px}
+  #hud{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
   main{flex:1 1 auto;position:relative;min-height:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   #bg{z-index:0}#art{z-index:1}#line{z-index:2}#fx{z-index:3}
@@ -36,7 +34,7 @@
   footer.hit{color:var(--accent)}
   footer.calm{color:var(--ink)}
   .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:0 14px 12px;z-index:4;pointer-events:none}
-  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(128,120,104,.28);background:rgba(255,255,255,.14);color:var(--ink);border-radius:999px;padding:7px 13px;font-size:12px;font-family:inherit;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(6px)}
+  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(128,120,104,.28);background:rgba(255,255,255,.14);color:var(--ink);border-radius:999px;padding:7px 13px;font-size:12px;font-family:inherit;letter-spacing:.04em;cursor:pointer}
   .panel{position:fixed;inset:0;z-index:20;background:var(--paper);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 10px) 18px calc(env(safe-area-inset-bottom) + 14px);overflow-y:auto;transition:opacity .2s}
   .panel.hidden{display:none}
   .phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -55,10 +53,7 @@
 </style>
 </head>
 <body>
-  <header>
-    <div class="brand">跟着线走<small id="modeName">弧行</small></div>
-    <div class="meta"><span id="timer">00:00</span><span id="best">最佳 00:00</span></div>
-  </header>
+  <header><canvas id="hud"></canvas></header>
   <main>
     <canvas id="bg"></canvas>
     <canvas id="art"></canvas>
@@ -80,12 +75,13 @@
         lnC=document.getElementById('line'), fxC=document.getElementById('fx');
   const bgx=bgC.getContext('2d'), artx=artC.getContext('2d'),
         lnx=lnC.getContext('2d'), fxx=fxC.getContext('2d');
-  const hintEl=document.getElementById('hint'), timerEl=document.getElementById('timer'),
-        bestEl=document.getElementById('best'), btnSpeed=document.getElementById('btnSpeed'),
+  const hintEl=document.getElementById('hint'),
+        hudC=document.getElementById('hud'), hudx=hudC.getContext('2d'),
+        btnSpeed=document.getElementById('btnSpeed'),
         btnAgain=document.getElementById('btnAgain'), btnPanel=document.getElementById('btnPanel'),
         panelEl=document.getElementById('panel'), pclose=document.getElementById('pclose'),
-        modeGrid=document.getElementById('modeGrid'), themeRow=document.getElementById('themeRow'),
-        modeNameEl=document.getElementById('modeName');
+        modeGrid=document.getElementById('modeGrid'), themeRow=document.getElementById('themeRow');
+  let hudDpr=1, hudW=0, hudH=0, hudTimer='00:00';
 
   const SPEEDS=[{v:70,label:'慢速'},{v:105,label:'中速'},{v:160,label:'快速'}];
   const QS=new URLSearchParams(location.search);
@@ -260,6 +256,42 @@
   }
   const T0=()=>THEMES[themeIdx];
 
+  // 顶部文字用 canvas 画：按物理像素渲染，PWA 全屏下也不会糊
+  function drawHud(){
+    if(!hudW) return;
+    const T=T0();
+    hudx.setTransform(hudDpr,0,0,hudDpr,0,0);
+    hudx.clearRect(0,0,hudW,hudH);
+    hudx.textBaseline='middle';
+    const y=hudH/2;
+    hudx.textAlign='left';
+    hudx.fillStyle=T.ink;
+    hudx.font='500 15px -apple-system,"PingFang SC",sans-serif';
+    hudx.fillText('跟着线走',18,y);
+    const w1=hudx.measureText('跟着线走').width;
+    hudx.fillStyle=T.soft;
+    hudx.font='400 12px -apple-system,"PingFang SC",sans-serif';
+    hudx.fillText(MODES[modeIdx].name, 18+w1+9, y+1);
+
+    hudx.textAlign='right';
+    hudx.font='400 13px -apple-system,"PingFang SC",sans-serif';
+    hudx.fillStyle=T.soft;
+    hudx.fillText('最佳 '+fmt(S.best), hudW-18, y);
+    const w2=hudx.measureText('最佳 '+fmt(S.best)).width;
+    hudx.fillStyle=T.ink;
+    hudx.fillText(hudTimer, hudW-18-w2-18, y);
+  }
+
+  function sizeHud(){
+    const stage=hudC.parentElement;
+    hudW=stage.clientWidth||window.innerWidth;
+    hudH=stage.clientHeight||46;
+    hudDpr=Math.min(window.devicePixelRatio||1,3);
+    hudC.width=Math.floor(hudW*hudDpr);
+    hudC.height=Math.floor(hudH*hudDpr);
+    drawHud();
+  }
+
   function setup(){
     const stage=bgC.parentElement;
     const W=stage.clientWidth||window.innerWidth;
@@ -271,6 +303,7 @@
       c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
     }
     paintBg();
+    sizeHud();
     restart();
   }
 
@@ -313,7 +346,7 @@
     S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
     S.x2=S.x; S.y2=S.y;
     if(M.init) M.init();
-    timerEl.textContent='00:00';
+    hudTimer='00:00'; drawHud();
     setHint('按住线头，跟着它走。走过的线会留在纸上。','');
   }
 
@@ -435,12 +468,12 @@
   function hud(now){
     if(now-S.lastHud<800) return;
     S.lastHud=now;
-    timerEl.textContent=fmt(S.elapsed);
+    hudTimer=fmt(S.elapsed);
     if(S.elapsed>S.best){
       S.best=S.elapsed;
-      bestEl.textContent='最佳 '+fmt(S.best);
       try{localStorage.setItem('line.best',String(S.best));}catch(e){}
     }
+    drawHud();
     for(const [sec,msg] of MOMENTS){
       if(S.elapsed>=sec && S.seen.indexOf(sec)<0){ S.seen.push(sec); setHint(msg,'calm'); }
     }
@@ -473,7 +506,6 @@
       b.innerHTML='<b>'+m.name+'</b><span>'+m.tip+'</span>';
       b.addEventListener('click',()=>{
         modeIdx=i;
-        modeNameEl.textContent=m.name;
         try{localStorage.setItem('line.mode',String(i));}catch(e){}
         [...modeGrid.children].forEach((c,k)=>c.classList.toggle('on',k===i));
         restart();
@@ -489,7 +521,7 @@
       b.title=t.name;
       b.innerHTML='<i style="background:'+t.ink+'"></i>';
       b.addEventListener('click',()=>{
-        applyTheme(i); paintBg();
+        applyTheme(i); paintBg(); drawHud();
         [...themeRow.children].forEach((c,k)=>c.classList.toggle('on',k===i));
         restart();
       });
@@ -525,7 +557,7 @@
     speedIdx=(speedIdx+1)%SPEEDS.length;
     btnSpeed.textContent=SPEEDS[speedIdx].label;
   });
-  btnAgain.addEventListener('click',()=>{ S.best=0; bestEl.textContent='最佳 00:00'; restart(); });
+  btnAgain.addEventListener('click',()=>{ S.best=0; restart(); });
 
   window.addEventListener('resize',()=>setup());
   window.addEventListener('orientationchange',()=>setTimeout(setup,240));
@@ -541,9 +573,7 @@
   if(QS.get('theme')){ const ti=THEMES.findIndex(t=>t.id===QS.get('theme')); if(ti>=0) themeIdx=ti; }
   if(QS.get('mode')){ modeIdx=Math.max(0,Math.min(MODES.length-1,parseInt(QS.get('mode'),10)||0)); }
   applyTheme(themeIdx);
-  bestEl.textContent='最佳 '+fmt(S.best);
   btnSpeed.textContent=SPEEDS[speedIdx].label;
-  modeNameEl.textContent=MODES[modeIdx].name;
   setup();
   window.__line=S;
   window.__modes=MODES;
