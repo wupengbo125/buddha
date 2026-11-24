@@ -1,0 +1,10 @@
+{
+  "name": "指尖迷宫",
+  "short_name": "指尖迷宫",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#EFE9DF",
+  "theme_color": "#EFE9DF",
+  "orientation": "any",
+  "description": "用手指沿一条线慢慢走进中心，一条不岔路的禅意迷宫。"
+}
