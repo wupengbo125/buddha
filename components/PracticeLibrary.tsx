@@ -38,7 +38,7 @@ function makeEditor(item?: Practice): Editor {
     target: item ? String(item.target) : '10000',
     targetKind: item ? (item.targetKind === 'time' ? 'time' : 'count') : 'time',
     minutes: item?.targetSeconds ? String(Math.round(item.targetSeconds / 60)) : '60',
-    idle: String(item?.idleSeconds || 10),
+    idle: String(item?.idleSeconds || 20),
     min: !item ? '5' : item.targetKind === 'time'
       ? String(Math.round((item.minSeconds || 300) / 60))
       : String(item.minSeconds || 100),
@@ -166,7 +166,7 @@ export function PracticeLibrary() {
         target: Number(editor.target),
         targetKind: editor.targetKind,
         targetSeconds: editor.targetKind === 'time' ? Math.round(Number(editor.minutes) * 60) : 0,
-        idleSeconds: Math.min(60, Math.max(1, Number(editor.idle) || 10)),
+        idleSeconds: Math.min(60, Math.max(1, Number(editor.idle) || 20)),
         minSeconds: editor.targetKind === 'count' ? Math.max(1, Math.round(Number(editor.min) || 100)) : Math.max(1, Math.round((Number(editor.min) || 5) * 60)),
       };
       const result = await practiceRequest<Practice>(editor.id ? `/api/practices/${encodeURIComponent(editor.id)}` : '/api/practices', editor.id ? 'PATCH' : 'POST', body);
