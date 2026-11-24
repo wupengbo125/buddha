@@ -6,33 +6,35 @@
 <meta name="theme-color" content="#F1ECE2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="跟着线走">
 <title>跟着线走</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="apple-mobile-web-app-title" content="跟着线走">
 <style>
-  :root{--paper:#F1ECE2;--ink:#22201D;--ink-soft:#6A6155;--accent:#B0472E}
+  :root{--paper:#F1ECE2;--ink:#1F1D1A;--ink-soft:#5B5346;--accent:#B0472E}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
   body{
     background:radial-gradient(120% 90% at 50% 0%, #F8F4EC 0%, var(--paper) 50%, #E8E1D4 100%);
-    color:var(--ink);font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",ui-serif,Georgia,serif;
+    color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Songti SC","Noto Serif SC",serif;
     display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-    touch-action:none;user-select:none;-webkit-user-select:none}
-  header{flex:0 0 auto;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:16px;font-weight:500;letter-spacing:.06em;color:#5B5346}
-  .brand{color:var(--ink);letter-spacing:.1em;font-weight:600;font-size:17px}
-  .meta{display:flex;gap:20px;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:#5B5346}
+    touch-action:none;user-select:none;-webkit-user-select:none;
+  }
+  header{flex:0 0 auto;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+  .brand{color:var(--ink);font-size:17px;font-weight:600;letter-spacing:.08em}
+  .meta{display:flex;gap:20px;font-size:16px;font-weight:500;color:var(--ink-soft);font-variant-numeric:tabular-nums}
   main{flex:1 1 auto;position:relative;min-height:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-  #bg{z-index:0}#line{z-index:1}#fx{z-index:2}
-  footer{flex:0 0 auto;min-height:72px;display:flex;align-items:center;justify-content:center;padding:0 22px 14px;text-align:center;font-size:15px;line-height:1.6;color:#6A6155;letter-spacing:.02em;transition:color .35s ease}
+  #bg{z-index:0}#art{z-index:1}#line{z-index:2}#fx{z-index:3}
+  footer{flex:0 0 auto;min-height:74px;display:flex;align-items:center;justify-content:center;padding:0 22px 14px;text-align:center;font-size:15px;line-height:1.6;color:#6A6155;letter-spacing:.02em;transition:color .35s}
   footer.hit{color:var(--accent)}
   footer.calm{color:var(--ink)}
-  .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;padding:0 14px 14px;z-index:3;pointer-events:none}
-  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(34,32,29,.14);background:rgba(251,248,241,.55);color:var(--ink-soft);border-radius:999px;padding:7px 13px;font-size:12px;font-family:inherit;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(6px)}
+  .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:0 14px 14px;z-index:4;pointer-events:none}
+  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(34,32,29,.14);background:rgba(251,248,241,.6);color:var(--ink-soft);border-radius:999px;padding:8px 15px;font-size:13px;font-family:inherit;letter-spacing:.06em;cursor:pointer}
 </style>
 </head>
 <body>
@@ -42,102 +44,79 @@
   </header>
   <main>
     <canvas id="bg"></canvas>
+    <canvas id="art"></canvas>
     <canvas id="line"></canvas>
     <canvas id="fx"></canvas>
-    <div class="tools"><button id="btnSpeed">中速</button></div>
+    <div class="tools"><button id="btnAgain">重来</button><button id="btnSpeed">中速</button></div>
   </main>
-  <footer id="hint">按住屏幕，指尖追着线头走。</footer>
+  <footer id="hint">按住线头，跟着它走。走过的线会留在纸上。</footer>
 <script>
 (() => {
-  const bgC = document.getElementById('bg');
-  const lnC = document.getElementById('line');
-  const fxC = document.getElementById('fx');
-  const bgx = bgC.getContext('2d');
-  const lnx = lnC.getContext('2d');
-  const fxx = fxC.getContext('2d');
-  const hintEl = document.getElementById('hint');
-  const timerEl = document.getElementById('timer');
-  const bestEl = document.getElementById('best');
-  const btnSpeed = document.getElementById('btnSpeed');
+  const bgC=document.getElementById('bg'), artC=document.getElementById('art'),
+        lnC=document.getElementById('line'), fxC=document.getElementById('fx');
+  const bgx=bgC.getContext('2d'), artx=artC.getContext('2d'),
+        lnx=lnC.getContext('2d'), fxx=fxC.getContext('2d');
+  const hintEl=document.getElementById('hint'), timerEl=document.getElementById('timer'),
+        bestEl=document.getElementById('best'), btnSpeed=document.getElementById('btnSpeed'),
+        btnAgain=document.getElementById('btnAgain');
 
-  const INK = '#22201D';
-  const SPEEDS = [{v:46,label:'慢速'},{v:78,label:'中速'},{v:124,label:'快速'}];
-  let speedIdx = 1;
+  const INK='#1F1D1A';
+  const SPEEDS=[{v:70,label:'慢速'},{v:105,label:'中速'},{v:160,label:'快速'}];
+  let speedIdx=1;
 
-  const MARGIN = 60;
-  const FOLLOW_R = 48;
-  const LOST_MS = 1600;
-  const START_GAP = 46;
+  const MARGIN=58;
+  const FOLLOW_R=52;
+  const STAMP_FRAMES=26;      // 每隔多少帧把这段浓墨盖印成浅墨
+  const STAMP_ALPHA=0.5;
 
-  const S = {
-    W:0,H:0,dpr:1, x:0,y:0,ang:0,prevX:0,prevY:0, t:0,
-    run:false, holding:false, t0:0, elapsed:0, following:false,
-    lostSince:0, best:0, lastHud:0, msgs:[], finger:{x:-999,y:-999},
-    trail:[], grid:new Map(), tx:0, ty:0, len:0, dir:-1, pausedHintShown:false
+  const S={
+    W:0,H:0,dpr:1,
+    x:0,y:0,ang:0,dir:-1,prevX:0,prevY:0,t:0,
+    holding:false,following:false,elapsed:0,best:0,
+    lastHud:0,frames:0,seen:[],tail:[],escape:0,curv:0,targetCurv:0,nextCurvAt:0,finger:{x:-999,y:-999}
   };
 
   function setup(){
-    const stage = bgC.parentElement;
-    const W = stage.clientWidth || window.innerWidth;
-    const H = stage.clientHeight || window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const stage=bgC.parentElement;
+    const W=stage.clientWidth||window.innerWidth;
+    const H=stage.clientHeight||window.innerHeight;
+    const dpr=Math.min(window.devicePixelRatio||1,3);
     S.W=W;S.H=H;S.dpr=dpr;
-    [bgC,lnC,fxC].forEach(c=>{
+    for(const c of [bgC,artC,lnC,fxC]){
       c.width=Math.floor(W*dpr); c.height=Math.floor(H*dpr);
       c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
-    });
+    }
     paintBg();
     restart();
   }
 
   function paintBg(){
-    const g=bgx;
-    g.setTransform(S.dpr,0,0,S.dpr,0,0);
-    g.clearRect(0,0,S.W,S.H);
+    bgx.setTransform(S.dpr,0,0,S.dpr,0,0);
+    bgx.clearRect(0,0,S.W,S.H);
     const n=Math.round(S.W*S.H/900);
     for(let i=0;i<n;i++){
-      g.fillStyle='rgba(120,105,85,'+(0.02+Math.random()*0.035)+')';
-      g.fillRect(Math.random()*S.W, Math.random()*S.H, 1, 1);
+      bgx.fillStyle='rgba(120,105,85,'+(0.02+Math.random()*0.035)+')';
+      bgx.fillRect(Math.random()*S.W,Math.random()*S.H,1,1);
     }
+  }
+
+  function clearArt(){
+    artx.setTransform(1,0,0,1,0,0);
+    artx.clearRect(0,0,artC.width,artC.height);
+    artx.setTransform(S.dpr,0,0,S.dpr,0,0);
+    lnx.setTransform(S.dpr,0,0,S.dpr,0,0);
+    lnx.clearRect(0,0,S.W,S.H);
   }
 
   function restart(){
-    S.x=S.W/2+(Math.random()-0.5)*S.W*0.25;
-    S.y=S.H*0.62;
-    S.ang=-Math.PI/2+(Math.random()-0.5)*1.4;
-    S.prevX=S.x;S.prevY=S.y;S.tx=S.x;S.ty=S.y;S.trail=[];S.grid=new Map();S.len=0;S.t=0;S.elapsed=0;S.following=false;S.lostSince=0;S.run=false;S.msgs=[];S.t0=0;
-    lnx.setTransform(S.dpr,0,0,S.dpr,0,0);
-    lnx.clearRect(0,0,S.W,S.H);
+    clearArt();
+    S.x=S.W/2+(Math.random()-0.5)*S.W*0.2;
+    S.y=S.H-MARGIN;
+    S.ang=-Math.PI/2; S.curv=0; S.targetCurv=0; S.nextCurvAt=0;
+    S.prevX=S.x; S.prevY=S.y;
+    S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
     timerEl.textContent='00:00';
-  }
-
-  const CELL = 56;
-
-  function addTrail(x,y){
-    const k = Math.floor(x/CELL)+':'+Math.floor(y/CELL);
-    let a = S.grid.get(k);
-    if(!a){ a=[]; S.grid.set(k,a); }
-    S.trail.push({x,y});
-    a.push(S.trail.length-1);
-  }
-
-  function nearestTrail(){
-    if(S.trail.length < 90) return null;
-    const i0=Math.floor(S.x/CELL), j0=Math.floor(S.y/CELL);
-    let bx=0, by=0, bd=1e9;
-    for(let i=i0-1;i<=i0+1;i++){
-      for(let j=j0-1;j<=j0+1;j++){
-        const arr=S.grid.get(i+':'+j);
-        if(!arr) continue;
-        for(const idx of arr){
-          if(idx > S.trail.length-60) continue;
-          const p=S.trail[idx];
-          const d=Math.hypot(p.x-S.x,p.y-S.y);
-          if(d<bd){ bd=d; bx=p.x; by=p.y; }
-        }
-      }
-    }
-    return bd < 56 ? {d:bd,x:bx,y:by} : null;
+    setHint('按住线头，跟着它走。走过的线会留在纸上。','');
   }
 
   function wrap(d){
@@ -147,53 +126,62 @@
   }
 
   function steer(dt){
-    // 到底往上、到顶往下：整张纸来回走，不会一直赖在下半屏
-    if(S.dir<0 && S.y < MARGIN+90) S.dir=1;
-    if(S.dir>0 && S.y > S.H-MARGIN-90) S.dir=-1;
+    // 曲率每隔一小段随机换一个值，再平滑追过去：一串随机弧，没有周期
+    S.nextCurvAt -= dt;
+    if(S.nextCurvAt<=0){
+      S.targetCurv=(Math.random()*2-1)*0.95;
+      S.nextCurvAt=0.22+Math.random()*0.65;
+    }
+    S.curv += (S.targetCurv-S.curv)*Math.min(1,dt*5.5);
+    S.ang += S.curv*dt;
 
-    const sway=0.78*Math.sin(S.t*0.55)+0.34*Math.sin(S.t*0.23+1.6);
-    const want=S.dir*Math.PI/2+sway;
-    S.ang += wrap(want-S.ang)*Math.min(1,dt*1.8);
+    // 边界交给 advance 里做镜面反弹，这里不干预角度
+  }
 
-    // 左右撞边折回
-    const c=Math.cos(S.ang), sn=Math.sin(S.ang);
-    if(S.x<MARGIN && c<0) S.ang=wrap(Math.PI-S.ang);
-    if(S.x>S.W-MARGIN && c>0) S.ang=wrap(Math.PI-S.ang);
-    if(S.y<MARGIN && sn<0) S.ang=wrap(-S.ang);
-    if(S.y>S.H-MARGIN && sn>0) S.ang=wrap(-S.ang);
+  const GRAY='rgba(31,29,26,0.52)';
+  const TAIL_LEN=230;   // 线头这段保持浓墨的长度
 
-    // 贴到自己走过的线就绕开，把空白处填上
-    const near=nearestTrail();
-    if(near){
-      const away=Math.atan2(S.y-near.y, S.x-near.x);
-      const w=Math.max(0,1-near.d/60);
-      S.ang += wrap(away-S.ang)*Math.min(1,dt*2.2)*w;
+  function advance(dt){
+    const step=SPEEDS[speedIdx].v*dt;
+    S.prevX=S.x; S.prevY=S.y;
+    S.x+=Math.cos(S.ang)*step;
+    S.y+=Math.sin(S.ang)*step;
+    // 撞到纸边就像光一样弹回来，弹的时候带一点随机
+    const jitter=()=>(Math.random()-0.5)*0.18;
+    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang+jitter()); }
+    else if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang+jitter()); }
+    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang+jitter()); }
+    else if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang+jitter()); }
+
+    // 走过的部分：用浅墨永久留在这张画上
+    artx.beginPath();
+    artx.lineCap='round'; artx.lineJoin='round';
+    artx.strokeStyle=GRAY; artx.lineWidth=3.2;
+    artx.moveTo(S.prevX,S.prevY); artx.lineTo(S.x,S.y); artx.stroke();
+
+    // 记录尾巴点（每 3px 一个）
+    const t=S.tail;
+    if(!t.length || Math.hypot(S.x-t[t.length-1][0], S.y-t[t.length-1][1])>3){
+      t.push([S.x,S.y]);
+    }
+    let len=0;
+    for(let i=t.length-1;i>0;i--){
+      len+=Math.hypot(t[i][0]-t[i-1][0], t[i][1]-t[i-1][1]);
+      if(len>TAIL_LEN){ t.splice(0,i); break; }
     }
   }
 
-  function advance(dt){
-    const v=SPEEDS[speedIdx].v;
-    const breathe=0.85+0.15*Math.sin(S.t*0.55);
-    const step=v*breathe*dt;
-    S.prevX=S.x;S.prevY=S.y;
-    S.x+=Math.cos(S.ang)*step;
-    S.y+=Math.sin(S.ang)*step;
-    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang); }
-    if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang); }
-    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang); }
-    if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang); }
-    S.len += step;
+  function drawTail(){
+    lnx.setTransform(S.dpr,0,0,S.dpr,0,0);
+    lnx.clearRect(0,0,S.W,S.H);
+    const t=S.tail;
+    if(t.length<2) return;
     lnx.beginPath();
-    lnx.lineCap='round';lnx.lineJoin='round';
-    lnx.strokeStyle=INK;lnx.lineWidth=3.2;
-    lnx.moveTo(S.prevX,S.prevY);
-    lnx.lineTo(S.x,S.y);
+    lnx.lineCap='round'; lnx.lineJoin='round';
+    lnx.strokeStyle=INK; lnx.lineWidth=3.2;
+    lnx.moveTo(t[0][0],t[0][1]);
+    for(let i=1;i<t.length;i++) lnx.lineTo(t[i][0],t[i][1]);
     lnx.stroke();
-
-    if(Math.hypot(S.x-S.tx, S.y-S.ty) > 4){
-      addTrail(S.x, S.y);
-      S.tx=S.x; S.ty=S.y;
-    }
   }
 
   let last=0;
@@ -202,24 +190,24 @@
     last=ts;
     S.t+=dt;
     const now=performance.now();
-    const dist=Math.hypot(S.finger.x-S.x, S.finger.y-S.y);
+    const dist=Math.hypot(S.finger.x-S.x,S.finger.y-S.y);
     const inRange=S.holding && dist<=FOLLOW_R;
 
     if(inRange){
-      if(!S.following){S.following=true;}
-      S.lostSince=0;
-      if(!S.run){S.run=true; if(!S.t0) S.t0=now;}
+      S.following=true;
+      if(!S.run){S.run=true;}
       steer(dt); advance(dt);
       S.elapsed+=dt;
     }else{
-      if(S.following){S.following=false;S.lostSince=now;}
-      if(!S.holding && S.lostSince && now-S.lostSince>LOST_MS){
-        if(!S.pausedHintShown){ S.pausedHintShown=true; hint('线停在这儿，等你回来。','hit'); }
+      S.following=false;
+      if(S.holding && now-(S.lastWaitHint||0)>2500){
+        S.lastWaitHint=now;
+        setHint('线在等你。手指回到圈里，它才继续。','hit');
       }
-      if(S.holding && now-(S.lastWaitHint||0)>2500){S.lastWaitHint=now;hint('线在等你。手指回到圈里，它才继续。','hit');}
     }
 
-    drawFx(ts, inRange);
+    drawTail();
+    drawFx(ts,inRange);
     hud(now);
     requestAnimationFrame(loop);
   }
@@ -228,35 +216,32 @@
     fxx.setTransform(S.dpr,0,0,S.dpr,0,0);
     fxx.clearRect(0,0,S.W,S.H);
     const pulse=0.5+0.5*Math.sin(ts/380);
-    const r=FOLLOW_R*0.95;
+    const r=FOLLOW_R*0.92;
     const grad=fxx.createRadialGradient(S.x,S.y,0,S.x,S.y,r);
     const a=inRange?0.10+pulse*0.06:0.07;
     grad.addColorStop(0,'rgba(176,71,46,'+a.toFixed(3)+')');
-    grad.addColorStop(0.75,'rgba(176,71,46,0.05)');
+    grad.addColorStop(0.75,'rgba(176,71,46,0.04)');
     grad.addColorStop(1,'rgba(176,71,46,0)');
     fxx.fillStyle=grad;
-    fxx.beginPath();fxx.arc(S.x,S.y,r,0,Math.PI*2);fxx.fill();
+    fxx.beginPath(); fxx.arc(S.x,S.y,r,0,Math.PI*2); fxx.fill();
 
-    fxx.beginPath();
-    fxx.arc(S.x,S.y,r*0.86,0,Math.PI*2);
-    fxx.strokeStyle='rgba(176,71,46,.38)';fxx.lineWidth=1;fxx.stroke();
+    fxx.beginPath(); fxx.arc(S.x,S.y,r*0.86,0,Math.PI*2);
+    fxx.strokeStyle='rgba(176,71,46,.36)'; fxx.lineWidth=1; fxx.stroke();
 
-    fxx.beginPath();
-    fxx.arc(S.x,S.y,5.6,0,Math.PI*2);
-    fxx.fillStyle=INK;fxx.fill();
+    fxx.beginPath(); fxx.arc(S.x,S.y,5.6,0,Math.PI*2);
+    fxx.fillStyle=INK; fxx.fill();
 
     if(S.holding && S.finger.x>-100){
-      fxx.beginPath();
-      fxx.arc(S.finger.x,S.finger.y,9,0,Math.PI*2);
-      fxx.strokeStyle=inRange?'rgba(34,32,29,.22)':'rgba(176,71,46,.55)';
-      fxx.lineWidth=1.2;fxx.stroke();
+      fxx.beginPath(); fxx.arc(S.finger.x,S.finger.y,9,0,Math.PI*2);
+      fxx.strokeStyle=inRange?'rgba(34,32,29,.20)':'rgba(176,71,46,.5)';
+      fxx.lineWidth=1.2; fxx.stroke();
     }
   }
 
-  const MOMENTS=[[30,'半分钟了。手别急，让线带你走。'],[60,'一分钟。呼吸跟着线慢下来。'],[120,'两分钟。此刻只有这一根线。'],[300,'五分钟。你已经很久没在想别的了。']];
+  const MOMENTS=[[60,'一分钟。手别急，让线带你走。'],[180,'三分钟。你已经很久没想别的了。']];
 
   function hud(now){
-    if(now-S.lastHud<900) return;
+    if(now-S.lastHud<800) return;
     S.lastHud=now;
     timerEl.textContent=fmt(S.elapsed);
     if(S.elapsed>S.best){
@@ -264,19 +249,23 @@
       bestEl.textContent='最佳 '+fmt(S.best);
       try{localStorage.setItem('line.best',String(S.best));}catch(e){}
     }
-    if(!S.run) return;
     for(const [sec,msg] of MOMENTS){
-      if(S.elapsed>=sec && !S.msgs.includes(sec)){S.msgs.push(sec);hint(msg,'calm');}
+      if(S.elapsed>=sec && S.seen.indexOf(sec)<0){
+        S.seen.push(sec); setHint(msg,'calm');
+      }
     }
   }
 
   let hintTimer=0;
-  function hint(msg,cls){
+  function setHint(msg,cls){
     hintEl.className=cls||'';
     hintEl.textContent=msg;
     clearTimeout(hintTimer);
-    if(cls!=='calm'){
-      hintTimer=setTimeout(()=>{hintEl.className='';hintEl.textContent='按住屏幕，指尖追着线头走。';},2800);
+    if(cls==='calm'){
+      hintTimer=setTimeout(()=>{
+        hintEl.className='';
+        hintEl.textContent='按住线头，跟着它走。走过的线会留在纸上。';
+      },3400);
     }
   }
 
@@ -287,29 +276,18 @@
 
   function setFinger(e){
     const r=fxC.getBoundingClientRect();
-    S.finger.x=e.clientX-r.left;
-    S.finger.y=e.clientY-r.top;
-  }
-  function setFingerFromEvent(e){
-    const r=fxC.getBoundingClientRect();
-    S.finger.x=e.clientX-r.left;
-    S.finger.y=e.clientY-r.top;
+    S.finger.x=e.clientX-r.left; S.finger.y=e.clientY-r.top;
   }
 
   document.addEventListener('pointerdown',e=>{
-    if(e.target && e.target.closest && e.target.closest('button')) return;
-    e.preventDefault();
-    setFingerFromEvent(e);
-    S.holding=true;
-    if(S.elapsed===0) hint('跟着它，别让它跑出圈。');
+    if(e.target&&e.target.closest&&e.target.closest('button')) return;
+    e.preventDefault(); setFinger(e); S.holding=true;
   },{passive:false});
-
   document.addEventListener('pointermove',e=>{
     if(!S.holding) return;
     if(e.pointerType==='touch') e.preventDefault();
-    setFingerFromEvent(e);
+    setFinger(e);
   },{passive:false});
-
   const up=()=>{S.holding=false;S.finger.x=-999;S.finger.y=-999;};
   window.addEventListener('pointerup',up);
   window.addEventListener('pointercancel',up);
@@ -319,6 +297,7 @@
     speedIdx=(speedIdx+1)%SPEEDS.length;
     btnSpeed.textContent=SPEEDS[speedIdx].label;
   });
+  btnAgain.addEventListener('click',()=>{ S.best=0; bestEl.textContent='最佳 00:00'; restart(); });
 
   window.addEventListener('resize',()=>setup());
   window.addEventListener('orientationchange',()=>setTimeout(setup,240));
@@ -327,7 +306,7 @@
   bestEl.textContent='最佳 '+fmt(S.best);
   btnSpeed.textContent=SPEEDS[speedIdx].label;
   setup();
-  window.__line = S;
+  window.__line=S;
   requestAnimationFrame(loop);
 })();
 </script>
