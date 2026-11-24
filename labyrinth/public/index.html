@@ -19,22 +19,22 @@
   body{
     background:radial-gradient(120% 90% at 50% 0%, #F8F4EC 0%, var(--paper) 50%, #E8E1D4 100%);
     color:var(--ink);
-    font-family:-apple-system,"PingFang SC","Songti SC","Noto Serif SC",serif;
+    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     touch-action:none;user-select:none;-webkit-user-select:none;
   }
-  header{flex:0 0 auto;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
-  .brand{color:var(--ink);font-size:17px;font-weight:600;letter-spacing:.08em}
-  .meta{display:flex;gap:20px;font-size:16px;font-weight:500;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  header{flex:0 0 auto;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+  .brand{color:var(--ink);font-size:14px;font-weight:500;letter-spacing:.04em}
+  .meta{display:flex;gap:16px;font-size:13px;font-weight:400;color:var(--ink-soft);font-variant-numeric:tabular-nums}
   main{flex:1 1 auto;position:relative;min-height:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   #bg{z-index:0}#art{z-index:1}#line{z-index:2}#fx{z-index:3}
-  footer{flex:0 0 auto;min-height:74px;display:flex;align-items:center;justify-content:center;padding:0 22px 14px;text-align:center;font-size:15px;line-height:1.6;color:#6A6155;letter-spacing:.02em;transition:color .35s}
+  footer{flex:0 0 auto;min-height:74px;display:flex;align-items:center;justify-content:center;padding:0 22px 14px;text-align:center;font-size:13px;line-height:1.7;color:#6A6155;letter-spacing:.01em;transition:color .35s}
   footer.hit{color:var(--accent)}
   footer.calm{color:var(--ink)}
   .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:0 14px 14px;z-index:4;pointer-events:none}
-  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(34,32,29,.14);background:rgba(251,248,241,.6);color:var(--ink-soft);border-radius:999px;padding:8px 15px;font-size:13px;font-family:inherit;letter-spacing:.06em;cursor:pointer}
+  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(34,32,29,.14);background:rgba(251,248,241,.6);color:var(--ink-soft);border-radius:999px;padding:7px 14px;font-size:12px;font-family:inherit;letter-spacing:.06em;cursor:pointer}
 </style>
 </head>
 <body>
@@ -112,7 +112,7 @@
     clearArt();
     S.x=S.W/2+(Math.random()-0.5)*S.W*0.2;
     S.y=S.H-MARGIN;
-    S.ang=-Math.PI/2; S.curv=0; S.targetCurv=0; S.nextCurvAt=0;
+    S.ang=-Math.PI/2; S.segLeft=0;
     S.prevX=S.x; S.prevY=S.y;
     S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
     timerEl.textContent='00:00';
@@ -126,16 +126,11 @@
   }
 
   function steer(dt){
-    // 曲率每隔一小段随机换一个值，再平滑追过去：一串随机弧，没有周期
-    S.nextCurvAt -= dt;
-    if(S.nextCurvAt<=0){
-      S.targetCurv=(Math.random()*2-1)*0.95;
-      S.nextCurvAt=0.22+Math.random()*0.65;
+    // 方向不连续：走完一小段就完全重新随机一个朝向，和上一段没有任何关系
+    if(S.segLeft<=0){
+      S.ang=Math.random()*Math.PI*2;
+      S.segLeft=20+Math.random()*50;
     }
-    S.curv += (S.targetCurv-S.curv)*Math.min(1,dt*5.5);
-    S.ang += S.curv*dt;
-
-    // 边界交给 advance 里做镜面反弹，这里不干预角度
   }
 
   const GRAY='rgba(31,29,26,0.52)';
@@ -143,15 +138,16 @@
 
   function advance(dt){
     const step=SPEEDS[speedIdx].v*dt;
+    S.segLeft-=step;
     S.prevX=S.x; S.prevY=S.y;
     S.x+=Math.cos(S.ang)*step;
     S.y+=Math.sin(S.ang)*step;
-    // 撞到纸边就像光一样弹回来，弹的时候带一点随机
-    const jitter=()=>(Math.random()-0.5)*0.18;
-    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang+jitter()); }
-    else if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang+jitter()); }
-    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang+jitter()); }
-    else if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang+jitter()); }
+    // 碰到纸边：不反弹，直接随机挑一个朝里的新方向，每次都不一样
+    const turnIn=(base)=>{ S.ang=wrap(base+(Math.random()-0.5)*1.8); S.segLeft=20+Math.random()*50; };
+    if(S.x<MARGIN){ S.x=MARGIN; turnIn(0); }
+    else if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; turnIn(Math.PI); }
+    if(S.y<MARGIN){ S.y=MARGIN; turnIn(Math.PI/2); }
+    else if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; turnIn(-Math.PI/2); }
 
     // 走过的部分：用浅墨永久留在这张画上
     artx.beginPath();
