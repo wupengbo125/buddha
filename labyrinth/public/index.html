@@ -21,11 +21,11 @@
     color:var(--ink);
     font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
     display:flex;flex-direction:column;
-    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    padding:calc(env(safe-area-inset-top,0px) + 10px) env(safe-area-inset-right,0px) calc(env(safe-area-inset-bottom,0px) + 4px) env(safe-area-inset-left,0px);
     touch-action:none;user-select:none;-webkit-user-select:none;
     transition:background .3s,color .3s;
   }
-  header{flex:0 0 auto;height:46px;position:relative;padding:0 18px}
+  header{flex:0 0 auto;height:60px;position:relative;padding:0 18px}
   #hud{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
   main{flex:1 1 auto;position:relative;min-height:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -263,10 +263,10 @@
     hudx.setTransform(hudDpr,0,0,hudDpr,0,0);
     hudx.clearRect(0,0,hudW,hudH);
     hudx.textBaseline='middle';
-    const y=hudH/2;
+    const y=hudH/2+4;
     hudx.textAlign='left';
     hudx.fillStyle=T.ink;
-    hudx.font='500 15px -apple-system,"PingFang SC",sans-serif';
+    hudx.font='500 16px -apple-system,"PingFang SC",sans-serif';
     hudx.fillText('跟着线走',18,y);
     const w1=hudx.measureText('跟着线走').width;
     hudx.fillStyle=T.soft;
@@ -285,7 +285,7 @@
   function sizeHud(){
     const stage=hudC.parentElement;
     hudW=stage.clientWidth||window.innerWidth;
-    hudH=stage.clientHeight||46;
+    hudH=stage.clientHeight||64;
     hudDpr=Math.min(window.devicePixelRatio||1,3);
     hudC.width=Math.floor(hudW*hudDpr);
     hudC.height=Math.floor(hudH*hudDpr);
