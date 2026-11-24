@@ -1,10 +1,10 @@
 {
-  "name": "指尖迷宫",
-  "short_name": "指尖迷宫",
+  "name": "跟着线走",
+  "short_name": "跟着线走",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#EFE9DF",
-  "theme_color": "#EFE9DF",
+  "background_color": "#F1ECE2",
+  "theme_color": "#F1ECE2",
   "orientation": "any",
-  "description": "用手指沿一条线慢慢走进中心，一条不岔路的禅意迷宫。"
+  "description": "一根墨线在纸上一路拐弯往前走，指尖贴住线头跟着它。"
 }
