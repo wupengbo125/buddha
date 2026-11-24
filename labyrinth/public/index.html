@@ -17,29 +17,46 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
   body{
-    background:radial-gradient(120% 90% at 50% 0%, #F8F4EC 0%, var(--paper) 50%, #E8E1D4 100%);
+    background:var(--paper);
     color:var(--ink);
-    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;
     display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     touch-action:none;user-select:none;-webkit-user-select:none;
+    transition:background .3s,color .3s;
   }
-  header{flex:0 0 auto;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
-  .brand{color:var(--ink);font-size:14px;font-weight:500;letter-spacing:.04em}
+  header{flex:0 0 auto;height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+  .brand{font-size:14px;font-weight:500;letter-spacing:.04em}
+  .brand small{font-size:11px;color:var(--ink-soft);margin-left:8px;letter-spacing:.02em}
   .meta{display:flex;gap:16px;font-size:13px;font-weight:400;color:var(--ink-soft);font-variant-numeric:tabular-nums}
   main{flex:1 1 auto;position:relative;min-height:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   #bg{z-index:0}#art{z-index:1}#line{z-index:2}#fx{z-index:3}
-  footer{flex:0 0 auto;min-height:74px;display:flex;align-items:center;justify-content:center;padding:0 22px 14px;text-align:center;font-size:13px;line-height:1.7;color:#6A6155;letter-spacing:.01em;transition:color .35s}
+  footer{flex:0 0 auto;min-height:64px;display:flex;align-items:center;justify-content:center;padding:0 22px 12px;text-align:center;font-size:13px;line-height:1.7;color:var(--ink-soft);transition:color .35s}
   footer.hit{color:var(--accent)}
   footer.calm{color:var(--ink)}
-  .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:0 14px 14px;z-index:4;pointer-events:none}
-  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(34,32,29,.14);background:rgba(251,248,241,.6);color:var(--ink-soft);border-radius:999px;padding:7px 14px;font-size:12px;font-family:inherit;letter-spacing:.06em;cursor:pointer}
+  .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:0 14px 12px;z-index:4;pointer-events:none}
+  .tools button{pointer-events:auto;appearance:none;border:1px solid rgba(128,120,104,.28);background:rgba(255,255,255,.14);color:var(--ink);border-radius:999px;padding:7px 13px;font-size:12px;font-family:inherit;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(6px)}
+  .panel{position:fixed;inset:0;z-index:20;background:var(--paper);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 10px) 18px calc(env(safe-area-inset-bottom) + 14px);overflow-y:auto;transition:opacity .2s}
+  .panel.hidden{display:none}
+  .phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .phead h2{margin:0;font-size:15px;font-weight:600;letter-spacing:.03em}
+  .phead button{appearance:none;border:0;background:none;color:var(--accent);font-size:14px;font-family:inherit;padding:8px 4px;cursor:pointer}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mcard{appearance:none;text-align:left;font-family:inherit;border:1px solid rgba(128,120,104,.22);background:rgba(255,255,255,.06);border-radius:12px;padding:10px 11px;cursor:pointer;color:var(--ink)}
+  .mcard.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .mcard b{display:block;font-size:13px;font-weight:600;margin-bottom:3px}
+  .mcard span{font-size:11px;color:var(--ink-soft);line-height:1.5;display:block}
+  .ptitle{margin:18px 0 8px;font-size:12px;letter-spacing:.06em;color:var(--ink-soft)}
+  .prow{display:flex;gap:9px;flex-wrap:wrap}
+  .sw{width:38px;height:38px;border-radius:50%;border:2px solid transparent;cursor:pointer;position:relative;appearance:none;padding:0}
+  .sw.on{border-color:var(--accent)}
+  .sw i{position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%)}
 </style>
 </head>
 <body>
   <header>
-    <div class="brand">跟着线走</div>
+    <div class="brand">跟着线走<small id="modeName">弧行</small></div>
     <div class="meta"><span id="timer">00:00</span><span id="best">最佳 00:00</span></div>
   </header>
   <main>
@@ -47,9 +64,16 @@
     <canvas id="art"></canvas>
     <canvas id="line"></canvas>
     <canvas id="fx"></canvas>
-    <div class="tools"><button id="btnAgain">重来</button><button id="btnSpeed">中速</button></div>
+    <div class="tools"><button id="btnAgain">重来</button><button id="btnPanel">模式</button><button id="btnSpeed">中速</button></div>
   </main>
   <footer id="hint">按住线头，跟着它走。走过的线会留在纸上。</footer>
+
+  <div class="panel hidden" id="panel">
+    <div class="phead"><h2>选一种走法</h2><button id="pclose">完成</button></div>
+    <div class="pgrid" id="modeGrid"></div>
+    <div class="ptitle">纸的颜色</div>
+    <div class="prow" id="themeRow"></div>
+  </div>
 <script>
 (() => {
   const bgC=document.getElementById('bg'), artC=document.getElementById('art'),
@@ -58,26 +82,183 @@
         lnx=lnC.getContext('2d'), fxx=fxC.getContext('2d');
   const hintEl=document.getElementById('hint'), timerEl=document.getElementById('timer'),
         bestEl=document.getElementById('best'), btnSpeed=document.getElementById('btnSpeed'),
-        btnAgain=document.getElementById('btnAgain');
+        btnAgain=document.getElementById('btnAgain'), btnPanel=document.getElementById('btnPanel'),
+        panelEl=document.getElementById('panel'), pclose=document.getElementById('pclose'),
+        modeGrid=document.getElementById('modeGrid'), themeRow=document.getElementById('themeRow'),
+        modeNameEl=document.getElementById('modeName');
 
-  const INK='#1F1D1A';
   const SPEEDS=[{v:70,label:'慢速'},{v:105,label:'中速'},{v:160,label:'快速'}];
-  // 测试模式：地址后加 ?turbo=2000 即可用超快速度跑，只给测试用，界面上没有入口
-  const TURBO=parseFloat(new URLSearchParams(location.search).get('turbo')||'0');
+  const QS=new URLSearchParams(location.search);
+  const TURBO=parseFloat(QS.get('turbo')||'0');
   if(TURBO>0) SPEEDS.push({v:TURBO,label:'测速'});
   let speedIdx=1;
 
-  const MARGIN=58;
+  const MARGIN=52;
   const FOLLOW_R=52;
-  const STAMP_FRAMES=26;      // 每隔多少帧把这段浓墨盖印成浅墨
-  const STAMP_ALPHA=0.5;
+  const TAIL_LEN=240;
+
+  // ---------- 纸与色 ----------
+  const THEMES=[
+    {id:'paper',name:'宣纸',paper:'#F1ECE2',ink:'#1F1D1A',gray:'rgba(31,29,26,.52)',soft:'#5B5346',accent:'#B0472E',tex:'dots'},
+    {id:'sky',name:'雾蓝',paper:'#E6EBF0',ink:'#182635',gray:'rgba(24,38,53,.5)',soft:'#4C5C6C',accent:'#B24A3C',tex:'grid'},
+    {id:'moss',name:'苔绿',paper:'#E5EADE',ink:'#232B1F',gray:'rgba(35,43,31,.5)',soft:'#4E5A46',accent:'#A85C31',tex:'dots'},
+    {id:'sand',name:'沙岩',paper:'#EFE3D0',ink:'#2C2318',gray:'rgba(44,35,24,.5)',soft:'#6A5A45',accent:'#B0472E',tex:'dots'},
+    {id:'night',name:'夜墨',paper:'#14161A',ink:'#EDE8DC',gray:'rgba(237,232,220,.42)',soft:'#8C877C',accent:'#C9603F',tex:'dots'},
+    {id:'mid',name:'藏青',paper:'#1A2132',ink:'#E7EDF7',gray:'rgba(231,237,247,.4)',soft:'#8592A8',accent:'#D2694A',tex:'grid'},
+    {id:'char',name:'炭灰',paper:'#26241F',ink:'#F0E9DB',gray:'rgba(240,233,219,.38)',soft:'#9A9184',accent:'#C9663F',tex:'none'}
+  ];
+  let themeIdx=0;
 
   const S={
     W:0,H:0,dpr:1,
-    x:0,y:0,ang:0,dir:-1,prevX:0,prevY:0,t:0,
+    x:0,y:0,ang:0,prevX:0,prevY:0,t:0,
     holding:false,following:false,elapsed:0,best:0,
-    lastHud:0,frames:0,seen:[],tail:[],escape:0,curv:0,targetCurv:0,nextCurvAt:0,finger:{x:-999,y:-999}
+    lastHud:0,frames:0,seen:[],tail:[],finger:{x:-999,y:-999},
+    curv:0,targetCurv:0,nextCurvAt:0,base:0,jit:0,phase:0,
+    th:0,rr:0,nextR:0,nextRAt:0,thetaW:1,
+    x2:0,y2:0
   };
+
+  // ---------- 11 种走法 ----------
+  function avoidBias(strength){
+    let bias=0;
+    const ax=S.x+Math.cos(S.ang)*118, ay=S.y+Math.sin(S.ang)*118;
+    let near=1e9;
+    const ref=S.tail;
+    for(let i=0;i<ref.length;i+=3){
+      const d=Math.hypot(ax-ref[i][0],ay-ref[i][1]);
+      if(d<near) near=d;
+    }
+    if(near<120) bias+=(strength||0.9)*(1-near/120)*(Math.random()<0.5?-1:1);
+    const look=Math.min(150,S.W*0.32);
+    const px=S.x+Math.cos(S.ang)*look, py=S.y+Math.sin(S.ang)*look;
+    if(px<MARGIN) bias-=1.0; else if(px>S.W-MARGIN) bias+=1.0;
+    if(py<MARGIN) bias-=1.0; else if(py>S.H-MARGIN) bias+=1.0;
+    return bias;
+  }
+
+  const MODES=[
+    {name:'弧行',tip:'大弧线慢慢游，最耐看',
+     init(){S.curv=0;S.targetCurv=0;S.nextCurvAt=0;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){ S.targetCurv=(Math.random()*2-1)*0.42; S.nextCurvAt=0.7+Math.random()*1.1; }
+       S.curv+=(S.targetCurv-S.curv)*Math.min(1,dt*4.5);
+       S.ang+=(S.curv+avoidBias(0.9))*dt;
+     }},
+    {name:'疾转',tip:'每隔半秒换向，走不出直线',
+     init(){S.nextCurvAt=0;S.base=-Math.PI/2;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){
+         S.base=wrap(S.base+(Math.random()<0.5?-1:1)*(0.7+Math.random()*1.5));
+         S.nextCurvAt=0.35+Math.random()*0.5;
+       }
+       S.ang=wrap(S.ang+wrap(S.base-S.ang)*Math.min(1,dt*3.2));
+       S.ang+=avoidBias(0.35)*dt;
+     }},
+    {name:'手抖',tip:'主线在抖，像笔尖颤',
+     init(){S.base=-Math.PI/2;S.jit=0;S.nextCurvAt=0;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){ S.base=wrap(S.base+(Math.random()*2-1)*1.15); S.nextCurvAt=0.35+Math.random()*0.55; }
+       S.jit=S.jit*0.9+(Math.random()-0.5)*0.2;
+       S.ang=wrap(S.ang+wrap(S.base-S.ang)*Math.min(1,dt*2.4)+S.jit);
+       S.ang+=avoidBias(0.4)*dt;
+     }},
+    {name:'花瓣',tip:'绕着中心开出不规则的花',
+     init(){S.th=Math.random()*Math.PI*2;S.thetaW=(Math.random()<0.5?-1:1);S.k=3+Math.floor(Math.random()*7);S.ph=Math.random()*6.28;S.rr=40;S.x=S.W/2;S.y=S.H/2;},
+     place(step,dt){
+       const cx=S.W/2, cy=S.H/2, R=Math.min(S.W*0.45,S.H*0.41);
+       S.th+=S.thetaW*dt*(0.55+0.15*Math.sin(S.t*0.4));
+       const wob=1+0.35*Math.sin(S.t*0.55+S.ph);   // 花瓣大小也在慢慢变
+       S.rr=R*(0.36+0.17*Math.sin(S.k*S.th+S.ph))*wob;
+       S.x=cx+Math.cos(S.th)*S.rr*0.96;
+       S.y=cy+Math.sin(S.th)*S.rr;
+       S.ang=S.th+Math.PI/2;
+     }},
+    {name:'星芒',tip:'方向乱跳，画出放射的星',
+     init(){S.nextCurvAt=0;S.base=-Math.PI/2;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){
+         S.base=wrap(S.base+(Math.random()<0.5?-1:1)*(0.85+Math.random()*1.1));
+         S.nextCurvAt=0.3+Math.random()*0.5;
+       }
+       S.ang=wrap(S.ang+wrap(S.base-S.ang)*Math.min(1,dt*4.5));
+       S.ang+=avoidBias(0.4)*dt;
+     }},
+    {name:'双笔',tip:'一条线配一条镜像线，像编织',
+     init(){S.curv=0;S.targetCurv=0;S.nextCurvAt=0;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){ S.targetCurv=(Math.random()*2-1)*0.45; S.nextCurvAt=0.8+Math.random()*1.2; }
+       S.curv+=(S.targetCurv-S.curv)*Math.min(1,dt*4);
+       S.ang+=(S.curv+avoidBias(0.85))*dt;
+     },
+     mirror:true},
+    {name:'呼吸',tip:'曲率像呼吸一样张合',
+     init(){S.phase=Math.random()*6.28;S.nextCurvAt=0;S.drift=0;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){ S.phase+=1.1+Math.random()*2.2; S.nextCurvAt=1.6+Math.random()*2.2; S.driftTarget=(Math.random()*2-1)*0.7; }
+       S.drift+=(S.driftTarget-S.drift)*Math.min(1,dt*2);
+       S.ang+=(0.5*Math.sin(S.t*0.55+S.phase)+S.drift+avoidBias(0.75))*dt;
+     }},
+    {name:'潮汐',tip:'高高低低的浪，一层层铺',
+     init(){S.phase=Math.random()*6.28;S.phase2=Math.random()*6.28;},
+     steer(dt){
+       S.ang+=(0.34*Math.sin(S.t*0.8+S.phase)+0.22*Math.sin(S.t*2.17+S.phase2)+avoidBias(0.6))*dt;
+     }},
+    {name:'曼陀罗',tip:'绕着中心一层层转出花盘',
+     init(){S.th=0;S.phase=Math.random()*6.28;S.thetaW=(Math.random()<0.5?-1:1)*0.9;S.rr=60;S.nextR=60;S.nextRAt=0;S.x=S.W/2;S.y=S.H/2;},
+     place(step,dt){
+       const cx=S.W/2, cy=S.H/2, R=Math.min(S.W*0.46,S.H*0.43);
+       if(S.t>S.nextRAt){
+         S.nextR=Math.min(R,Math.max(R*0.42, S.nextR+(Math.random()*2-1)*R*0.34));
+         if(Math.random()<0.4) S.thetaW*=-1;
+         S.nextRAt=S.t+0.25+Math.random()*0.45;
+       }
+       S.rr+=(S.nextR-S.rr)*Math.min(1,dt*2.2);
+       S.th+=S.thetaW*dt*(1.2+0.9*Math.sin(S.t*0.5+S.phase));
+       S.x=cx+Math.cos(S.th)*S.rr;
+       S.y=cy+Math.sin(S.th)*S.rr;
+       S.ang=S.th+Math.PI/2;
+     }},
+    {name:'沙暴',tip:'高频乱抖，密密麻麻',
+     init(){S.base=-Math.PI/2;S.nextCurvAt=0;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){ S.base=wrap(S.base+(Math.random()*2-1)*1.4); S.nextCurvAt=0.18+Math.random()*0.3; }
+       S.ang=wrap(S.ang+wrap(S.base-S.ang)*Math.min(1,dt*6)+(Math.random()-0.5)*0.5);
+       S.ang+=avoidBias(0.3)*dt;
+     }},
+    {name:'蛇行',tip:'方向稳一会儿再拐，长蛇游走',
+     init(){S.base=-Math.PI/2;S.nextCurvAt=0;},
+     steer(dt){
+       S.nextCurvAt-=dt;
+       if(S.nextCurvAt<=0){
+         S.base=wrap(S.base+(Math.random()<0.5?-1:1)*(0.4+Math.random()*0.9));
+         S.nextCurvAt=0.9+Math.random()*1.3;
+       }
+       S.ang=wrap(S.ang+wrap(S.base-S.ang)*Math.min(1,dt*2.6));
+     }}
+  ];
+  let modeIdx=0;
+
+  function wrap(d){ while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; return d; }
+
+  function applyTheme(i){
+    themeIdx=i;
+    const T=THEMES[i];
+    document.documentElement.style.setProperty('--paper',T.paper);
+    document.documentElement.style.setProperty('--ink',T.ink);
+    document.documentElement.style.setProperty('--ink-soft',T.soft);
+    document.documentElement.style.setProperty('--accent',T.accent);
+    document.querySelector('meta[name=theme-color]').setAttribute('content',T.paper);
+    try{localStorage.setItem('line.theme',T.id);}catch(e){}
+  }
+  const T0=()=>THEMES[themeIdx];
 
   function setup(){
     const stage=bgC.parentElement;
@@ -94,12 +275,21 @@
   }
 
   function paintBg(){
+    const T=T0();
     bgx.setTransform(S.dpr,0,0,S.dpr,0,0);
     bgx.clearRect(0,0,S.W,S.H);
-    const n=Math.round(S.W*S.H/900);
-    for(let i=0;i<n;i++){
-      bgx.fillStyle='rgba(120,105,85,'+(0.02+Math.random()*0.035)+')';
-      bgx.fillRect(Math.random()*S.W,Math.random()*S.H,1,1);
+    if(T.tex==='dots'){
+      const n=Math.round(S.W*S.H/900);
+      for(let i=0;i<n;i++){
+        bgx.fillStyle=T.gray.replace(/[\d.]+\)$/,'0.05)');
+        bgx.fillRect(Math.random()*S.W,Math.random()*S.H,1,1);
+      }
+    }else if(T.tex==='grid'){
+      bgx.strokeStyle=T.gray.replace(/[\d.]+\)$/,'0.10)');
+      bgx.lineWidth=1;
+      const g=26;
+      for(let x=0;x<S.W;x+=g){ bgx.beginPath(); bgx.moveTo(x,0); bgx.lineTo(x,S.H); bgx.stroke(); }
+      for(let y=0;y<S.H;y+=g){ bgx.beginPath(); bgx.moveTo(0,y); bgx.lineTo(S.W,y); bgx.stroke(); }
     }
   }
 
@@ -109,84 +299,63 @@
     artx.setTransform(S.dpr,0,0,S.dpr,0,0);
     lnx.setTransform(S.dpr,0,0,S.dpr,0,0);
     lnx.clearRect(0,0,S.W,S.H);
+    fxx.setTransform(S.dpr,0,0,S.dpr,0,0);
+    fxx.clearRect(0,0,S.W,S.H);
   }
 
   function restart(){
     clearArt();
-    S.x=S.W/2+(Math.random()-0.5)*S.W*0.2;
+    const M=MODES[modeIdx];
+    S.x=S.W/2+(Math.random()-0.5)*S.W*0.18;
     S.y=S.H-MARGIN;
-    S.ang=-Math.PI/2; S.curv=0; S.targetCurv=0; S.nextCurvAt=0;
+    S.ang=-Math.PI/2;
     S.prevX=S.x; S.prevY=S.y;
     S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
+    S.x2=S.x; S.y2=S.y;
+    if(M.init) M.init();
     timerEl.textContent='00:00';
     setHint('按住线头，跟着它走。走过的线会留在纸上。','');
   }
 
-  function wrap(d){
-    while(d>Math.PI) d-=Math.PI*2;
-    while(d<-Math.PI) d+=Math.PI*2;
-    return d;
+  function steer(dt){ MODES[modeIdx].steer ? MODES[modeIdx].steer(dt) : null; }
+
+  function stepMove(step,dt){
+    const M=MODES[modeIdx];
+    S.prevX=S.x; S.prevY=S.y;
+    if(M.place) M.place(step,dt);
+    else{ S.x+=Math.cos(S.ang)*step; S.y+=Math.sin(S.ang)*step; }
+
+    const minX = M.place ? 24 : MARGIN, minY = M.place ? 24 : MARGIN;
+    const maxX = S.W-(M.place?24:MARGIN), maxY = S.H-(M.place?24:MARGIN);
+    if(S.x<minX){ S.x=minX; if(!M.place) S.ang=wrap(Math.PI-S.ang+(Math.random()-0.5)*0.15); }
+    else if(S.x>maxX){ S.x=maxX; if(!M.place) S.ang=wrap(Math.PI-S.ang+(Math.random()-0.5)*0.15); }
+    if(S.y<minY){ S.y=minY; if(!M.place) S.ang=wrap(-S.ang+(Math.random()-0.5)*0.15); }
+    else if(S.y>maxY){ S.y=maxY; if(!M.place) S.ang=wrap(-S.ang+(Math.random()-0.5)*0.15); }
   }
 
-
-  // 挑一个方向：在当前方向附近随机，但不许马上绕回刚画过的线，否则会缠成圈
-  // 弧线：曲率每 0.7~1.8 秒随机换一个温和的值，再慢慢追过去；靠近旧线或纸边时缓缓向外偏
-  function steer(dt){
-    S.nextCurvAt-=dt;
-    if(S.nextCurvAt<=0){
-      S.targetCurv=(Math.random()*2-1)*0.4;
-      S.nextCurvAt=0.7+Math.random()*1.1;
-    }
-    S.curv+=(S.targetCurv-S.curv)*Math.min(1,dt*4.5);
-    let bias=0;
-
-    // 前方 120px 若有自己画过的线，就往反方向偏，避免缠在一起
-    const ax=S.x+Math.cos(S.ang)*120, ay=S.y+Math.sin(S.ang)*120;
-    const ref=S.tail;
-    let near=1e9;
-    for(let i=0;i<ref.length;i+=2){
-      const d=Math.hypot(ax-ref[i][0],ay-ref[i][1]);
-      if(d<near) near=d;
-    }
-    if(near<120) bias+=0.9*(1-near/120)*(Math.random()<0.5?-1:1);
-
-    // 离纸边太近就缓缓转回来，用大半径弧绕开，不硬拐
-    const look=Math.min(150, S.W*0.3);
-    const px=S.x+Math.cos(S.ang)*look, py=S.y+Math.sin(S.ang)*look;
-    if(px<MARGIN) bias-=1.05;
-    else if(px>S.W-MARGIN) bias+=1.05;
-    if(py<MARGIN) bias-=1.05;
-    else if(py>S.H-MARGIN) bias+=1.05;
-
-    S.ang+= (S.curv+bias)*dt;
+  function paintSeg(ctx,x0,y0,x1,y1,color,w){
+    ctx.beginPath(); ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.strokeStyle=color; ctx.lineWidth=w;
+    ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
   }
-
-  const GRAY='rgba(31,29,26,0.52)';
-  const TAIL_LEN=230;   // 线头这段保持浓墨的长度
 
   function advance(dt){
     const step=SPEEDS[speedIdx].v*dt;
-    S.prevX=S.x; S.prevY=S.y;
-    S.x+=Math.cos(S.ang)*step;
-    S.y+=Math.sin(S.ang)*step;
-    // 碰到纸边：不反弹，直接随机挑一个朝里的新方向，每次都不一样
-    // 撞边就像光一样弹回去，方向一定背离这条边，不会顺着边滑
-    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang+(Math.random()-0.5)*0.15); }
-    else if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang+(Math.random()-0.5)*0.15); }
-    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang+(Math.random()-0.5)*0.15); }
-    else if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang+(Math.random()-0.5)*0.15); }
+    const T=T0();
+    stepMove(step,dt);
 
-    // 走过的部分：用浅墨永久留在这张画上
-    artx.beginPath();
-    artx.lineCap='round'; artx.lineJoin='round';
-    artx.strokeStyle=GRAY; artx.lineWidth=3.2;
-    artx.moveTo(S.prevX,S.prevY); artx.lineTo(S.x,S.y); artx.stroke();
+    // 走过的部分：浅墨永久留在纸上
+    paintSeg(artx,S.prevX,S.prevY,S.x,S.y,T.gray,3.2);
 
-    // 记录尾巴点（每 3px 一个）
-    const t=S.tail;
-    if(!t.length || Math.hypot(S.x-t[t.length-1][0], S.y-t[t.length-1][1])>3){
-      t.push([S.x,S.y]);
+    if(MODES[modeIdx].mirror){
+      const cx=S.W/2, cy=S.H/2;
+      const mx=cx*2-S.x, my=cy*2-S.y;
+      paintSeg(artx,cx*2-S.prevX,cy*2-S.prevY,mx,my,T.gray,3.2);
+      S.x2=mx; S.y2=my;
     }
+
+    const t=S.tail;
+    if(!t.length || Math.hypot(S.x-t[t.length-1][0], S.y-t[t.length-1][1])>3) t.push([S.x,S.y]);
     let len=0;
     for(let i=t.length-1;i>0;i--){
       len+=Math.hypot(t[i][0]-t[i-1][0], t[i][1]-t[i-1][1]);
@@ -195,13 +364,13 @@
   }
 
   function drawTail(){
+    const T=T0();
     lnx.setTransform(S.dpr,0,0,S.dpr,0,0);
     lnx.clearRect(0,0,S.W,S.H);
     const t=S.tail;
     if(t.length<2) return;
-    lnx.beginPath();
-    lnx.lineCap='round'; lnx.lineJoin='round';
-    lnx.strokeStyle=INK; lnx.lineWidth=3.2;
+    lnx.beginPath(); lnx.lineCap='round'; lnx.lineJoin='round';
+    lnx.strokeStyle=T.ink; lnx.lineWidth=3.2;
     lnx.moveTo(t[0][0],t[0][1]);
     for(let i=1;i<t.length;i++) lnx.lineTo(t[i][0],t[i][1]);
     lnx.stroke();
@@ -218,8 +387,8 @@
 
     if(inRange){
       S.following=true;
-      if(!S.run){S.run=true;}
-      steer(dt); advance(dt);
+      steer(dt);
+      advance(dt);
       S.elapsed+=dt;
     }else{
       S.following=false;
@@ -236,28 +405,28 @@
   }
 
   function drawFx(ts,inRange){
+    const T=T0();
     fxx.setTransform(S.dpr,0,0,S.dpr,0,0);
     fxx.clearRect(0,0,S.W,S.H);
     const pulse=0.5+0.5*Math.sin(ts/380);
     const r=FOLLOW_R*0.92;
-    const grad=fxx.createRadialGradient(S.x,S.y,0,S.x,S.y,r);
-    const a=inRange?0.10+pulse*0.06:0.07;
-    grad.addColorStop(0,'rgba(176,71,46,'+a.toFixed(3)+')');
-    grad.addColorStop(0.75,'rgba(176,71,46,0.04)');
-    grad.addColorStop(1,'rgba(176,71,46,0)');
-    fxx.fillStyle=grad;
-    fxx.beginPath(); fxx.arc(S.x,S.y,r,0,Math.PI*2); fxx.fill();
-
-    fxx.beginPath(); fxx.arc(S.x,S.y,r*0.86,0,Math.PI*2);
-    fxx.strokeStyle='rgba(176,71,46,.36)'; fxx.lineWidth=1; fxx.stroke();
+    const ac=T.accent;
+    fxx.beginPath(); fxx.arc(S.x,S.y,r,0,Math.PI*2);
+    fxx.strokeStyle=ac; fxx.globalAlpha=inRange?0.34+pulse*0.16:0.22;
+    fxx.lineWidth=1; fxx.stroke(); fxx.globalAlpha=1;
 
     fxx.beginPath(); fxx.arc(S.x,S.y,5.6,0,Math.PI*2);
-    fxx.fillStyle=INK; fxx.fill();
+    fxx.fillStyle=T.ink; fxx.fill();
+
+    if(MODES[modeIdx].mirror){
+      fxx.beginPath(); fxx.arc(S.x2,S.y2,4,0,Math.PI*2);
+      fxx.strokeStyle=T.ink; fxx.globalAlpha=.5; fxx.lineWidth=1; fxx.stroke(); fxx.globalAlpha=1;
+    }
 
     if(S.holding && S.finger.x>-100){
       fxx.beginPath(); fxx.arc(S.finger.x,S.finger.y,9,0,Math.PI*2);
-      fxx.strokeStyle=inRange?'rgba(34,32,29,.20)':'rgba(176,71,46,.5)';
-      fxx.lineWidth=1.2; fxx.stroke();
+      fxx.strokeStyle=inRange?T.gray:ac;
+      fxx.globalAlpha=inRange?1:0.5; fxx.lineWidth=1.2; fxx.stroke(); fxx.globalAlpha=1;
     }
   }
 
@@ -273,9 +442,7 @@
       try{localStorage.setItem('line.best',String(S.best));}catch(e){}
     }
     for(const [sec,msg] of MOMENTS){
-      if(S.elapsed>=sec && S.seen.indexOf(sec)<0){
-        S.seen.push(sec); setHint(msg,'calm');
-      }
+      if(S.elapsed>=sec && S.seen.indexOf(sec)<0){ S.seen.push(sec); setHint(msg,'calm'); }
     }
   }
 
@@ -297,12 +464,50 @@
     return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   }
 
+  // ---------- 面板 ----------
+  function buildPanel(){
+    modeGrid.innerHTML='';
+    MODES.forEach((m,i)=>{
+      const b=document.createElement('button');
+      b.className='mcard'+(i===modeIdx?' on':'');
+      b.innerHTML='<b>'+m.name+'</b><span>'+m.tip+'</span>';
+      b.addEventListener('click',()=>{
+        modeIdx=i;
+        modeNameEl.textContent=m.name;
+        try{localStorage.setItem('line.mode',String(i));}catch(e){}
+        [...modeGrid.children].forEach((c,k)=>c.classList.toggle('on',k===i));
+        restart();
+        closePanel();
+      });
+      modeGrid.appendChild(b);
+    });
+    themeRow.innerHTML='';
+    THEMES.forEach((t,i)=>{
+      const b=document.createElement('button');
+      b.className='sw'+(i===themeIdx?' on':'');
+      b.style.background=t.paper;
+      b.title=t.name;
+      b.innerHTML='<i style="background:'+t.ink+'"></i>';
+      b.addEventListener('click',()=>{
+        applyTheme(i); paintBg();
+        [...themeRow.children].forEach((c,k)=>c.classList.toggle('on',k===i));
+        restart();
+      });
+      themeRow.appendChild(b);
+    });
+  }
+  function openPanel(){ panelEl.classList.remove('hidden'); buildPanel(); }
+  function closePanel(){ panelEl.classList.add('hidden'); }
+  btnPanel.addEventListener('click',openPanel);
+  pclose.addEventListener('click',closePanel);
+
   function setFinger(e){
     const r=fxC.getBoundingClientRect();
     S.finger.x=e.clientX-r.left; S.finger.y=e.clientY-r.top;
   }
 
   document.addEventListener('pointerdown',e=>{
+    if(!panelEl.classList.contains('hidden')) return;
     if(e.target&&e.target.closest&&e.target.closest('button')) return;
     e.preventDefault(); setFinger(e); S.holding=true;
   },{passive:false});
@@ -325,11 +530,23 @@
   window.addEventListener('resize',()=>setup());
   window.addEventListener('orientationchange',()=>setTimeout(setup,240));
 
-  try{S.best=parseFloat(localStorage.getItem('line.best')||'0')||0;}catch(e){}
+  // 恢复上次的设置
+  try{
+    S.best=parseFloat(localStorage.getItem('line.best')||'0')||0;
+    const th=localStorage.getItem('line.theme');
+    const ti=THEMES.findIndex(t=>t.id===th); if(ti>=0) themeIdx=ti;
+    const mi=parseInt(localStorage.getItem('line.mode')||'0',10);
+    if(mi>=0&&mi<MODES.length) modeIdx=mi;
+  }catch(e){}
+  if(QS.get('theme')){ const ti=THEMES.findIndex(t=>t.id===QS.get('theme')); if(ti>=0) themeIdx=ti; }
+  if(QS.get('mode')){ modeIdx=Math.max(0,Math.min(MODES.length-1,parseInt(QS.get('mode'),10)||0)); }
+  applyTheme(themeIdx);
   bestEl.textContent='最佳 '+fmt(S.best);
   btnSpeed.textContent=SPEEDS[speedIdx].label;
+  modeNameEl.textContent=MODES[modeIdx].name;
   setup();
   window.__line=S;
+  window.__modes=MODES;
   requestAnimationFrame(loop);
 })();
 </script>
