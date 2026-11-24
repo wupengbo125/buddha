@@ -6,5 +6,10 @@
   "background_color": "#F1ECE2",
   "theme_color": "#F1ECE2",
   "orientation": "any",
-  "description": "一根墨线在纸上一路拐弯往前走，指尖贴住线头跟着它。"
+  "description": "一根墨线在纸上一路拐弯往前走，指尖贴住线头跟着它。",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }
