@@ -165,6 +165,16 @@ describe('practice API', () => {
     expect(sqlite.prepare('SELECT COUNT(*) AS count FROM practice_likes').get().count).toBe(0);
   });
 
+  it('deletes a practice still referenced by a legacy collection', async () => {
+    const practices = await import('@/app/api/practices/route');
+    const detail = await import('@/app/api/practices/[id]/route');
+    const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'linked', prompts: [], target: 108 })));
+    sqlite.prepare("INSERT INTO practice_collections (id, owner_id, name, description, created_at, updated_at) VALUES ('col', 'owner', 'c', '', '2026-01-01', '2026-01-01')").run();
+    sqlite.prepare("INSERT INTO practice_collection_items (id, collection_id, practice_id, position) VALUES ('item', 'col', ?, 0)").run(practice.id);
+    expect((await detail.DELETE(request(`practices/${practice.id}`, 'DELETE'), context(practice.id))).status).toBe(200);
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM practice_collection_items').get().count).toBe(0);
+  });
+
   it('zeroes today and total and clears the finished round', async () => {
     const practices = await import('@/app/api/practices/route');
     const detail = await import('@/app/api/practices/[id]/route');

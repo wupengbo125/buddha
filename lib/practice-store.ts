@@ -134,6 +134,8 @@ export async function deleteContent(db: D1Database, id: string, owner: string, i
   const statements = withdrawalStatements(db, id);
   statements.push(
     db.prepare('DELETE FROM wishlist_items WHERE practice_id = ?').bind(id),
+    // 旧「发愿集」的关联是 ON DELETE RESTRICT，会挡住删除；先解开。
+    db.prepare('DELETE FROM practice_collection_items WHERE practice_id = ?').bind(id),
     db.prepare('DELETE FROM practice_reviews WHERE kind = ? AND content_id = ?').bind('practices', id),
     db.prepare('DELETE FROM practice_likes WHERE kind = ? AND content_id = ?').bind('practices', id),
     db.prepare('DELETE FROM practice_favorites WHERE kind = ? AND content_id = ?').bind('practices', id),
