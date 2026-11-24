@@ -125,11 +125,20 @@ export async function withdrawContent(db: D1Database, id: string, owner: string)
 export async function deleteContent(db: D1Database, id: string, owner: string, images: R2BucketLike): Promise<void> {
   await ownedRow(db, id, owner);
   const imageRows = (await db.prepare('SELECT r2_key FROM images WHERE counter_id = ?').bind(id).all<{ r2_key: string }>()).results ?? [];
+  // 打卡流水可能上万条：分块删，别让一条 DELETE 带着触发器一次清完而超时。
+  for (;;) {
+    const chunk = await db.prepare('DELETE FROM tap_events WHERE rowid IN (SELECT rowid FROM tap_events WHERE counter_id = ? LIMIT 200)').bind(id).run();
+    const changed = Number((chunk as { meta?: { changes?: number } }).meta?.changes ?? 0);
+    if (!changed) break;
+  }
   const statements = withdrawalStatements(db, id);
   statements.push(
+    db.prepare('DELETE FROM wishlist_items WHERE practice_id = ?').bind(id),
     db.prepare('DELETE FROM practice_reviews WHERE kind = ? AND content_id = ?').bind('practices', id),
     db.prepare('DELETE FROM practice_likes WHERE kind = ? AND content_id = ?').bind('practices', id),
     db.prepare('DELETE FROM practice_favorites WHERE kind = ? AND content_id = ?').bind('practices', id),
+    db.prepare('DELETE FROM images WHERE counter_id = ?').bind(id),
+    db.prepare('DELETE FROM counters WHERE id = ?').bind(id),
     db.prepare('DELETE FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner),
   );
   await atomic(db, statements);
