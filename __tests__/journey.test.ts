@@ -61,9 +61,9 @@ describe('journey stats', () => {
     const now = new Date(Date.now() + 8 * 3600 * 1000);
     const todayKey = now.toISOString().slice(0, 10);
     const weekKey = new Date(now.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
-    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e1','count','owner','e1',30,?,'2026-11-16')").run(todayKey);
-    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e2','timed','owner','e2',120,?,'2026-11-10')").run(weekKey);
-    sqlite.prepare("INSERT INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES ('e3','timed','owner','e3',300,'2026-10-30','2026-10-30')").run();
+    sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('count','owner','e1',30,60,?,'2026-11-16')").run(todayKey);
+    sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('timed','owner','e2',120,120,?,'2026-11-10')").run(weekKey);
+    sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('timed','owner','e3',300,300,'2026-10-30','2026-10-30')").run();
     const stats = await journeyStats(db, 'owner');
     expect(stats.seconds).toBe(480); // 30×2 + 120 + 300，历史只按打卡流水算，归零不倒退
     expect(stats.today).toBe(60);

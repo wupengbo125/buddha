@@ -23,11 +23,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { DB } = getEnv();
     const practice = await DB.prepare('SELECT target_kind FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner).first<{ target_kind: string }>();
     if (!practice || practice.target_kind !== 'time') return jsonError('不是时长模式', 400);
+    // 累计由一个数承载；event_id 只留 7 天用于防重发。
+    const seconds = minutes * 60;
     const inserted = await DB.prepare(
-      'INSERT OR IGNORE INTO tap_events (id, counter_id, device_id, event_id, delta, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-      .bind(ulid(), id, owner, event_id, minutes * 60, date, new Date().toISOString())
+      .bind(id, owner, event_id, seconds, seconds, date, new Date().toISOString())
       .run();
+    if (!inserted.success) return jsonError('上报失败', 500);
+    await DB.prepare('DELETE FROM tap_marks WHERE owner_id = ? AND created_at < ?').bind(owner, new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()).run();
     const current = await DB.prepare('SELECT total, today, today_date FROM counters WHERE id = ?').bind(id).first<CounterTotals>();
     return NextResponse.json({ ...current, event_id, applied: Number(inserted.meta?.changes ?? 0) > 0 });
   } catch {
