@@ -428,7 +428,7 @@
     clearArt();
     const M=MODES[modeIdx];
     S.x=S.W/2+(Math.random()-0.5)*S.W*0.18;
-    S.y=S.H-MARGIN;
+    S.y=S.H-MARGIN-80;   // 起点抬高一点，别被底部按钮压住
     S.ang=-Math.PI/2;
     S.prevX=S.x; S.prevY=S.y;
     S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
@@ -531,10 +531,23 @@
     fxx.clearRect(0,0,S.W,S.H);
     const pulse=0.5+0.5*Math.sin(ts/380);
     const r=FOLLOW_R*0.92;
-    const ac=T.accent;
-    fxx.beginPath(); fxx.arc(S.x,S.y,r,0,Math.PI*2);
-    fxx.strokeStyle=ac; fxx.globalAlpha=inRange?0.34+pulse*0.16:0.22;
-    fxx.lineWidth=1; fxx.stroke(); fxx.globalAlpha=1;
+    const ac=T.dark?'#E8896A':T.accent;
+
+    // 圈内一层很淡的底，让"可跟随范围"一眼能看见
+    const grad=fxx.createRadialGradient(S.x,S.y,r*0.25,S.x,S.y,r);
+    grad.addColorStop(0,'rgba(0,0,0,0)');
+    grad.addColorStop(1,rgba(ac, T.dark?0.16:0.10));
+    fxx.beginPath(); fxx.arc(S.x,S.y,r,0,6.283); fxx.fillStyle=grad; fxx.fill();
+
+    // 圈线：加粗、加深
+    fxx.beginPath(); fxx.arc(S.x,S.y,r,0,6.283);
+    fxx.strokeStyle=rgba(ac, T.dark?0.85:0.62);
+    fxx.lineWidth=1.8; fxx.stroke();
+
+    // 里圈细线，深浅随跟随状态变化
+    fxx.beginPath(); fxx.arc(S.x,S.y,r*0.84,0,6.283);
+    fxx.strokeStyle=rgba(ac, inRange?(T.dark?0.75:0.55):(T.dark?0.45:0.32));
+    fxx.lineWidth=1.2; fxx.stroke();
 
     fxx.beginPath(); fxx.arc(S.x,S.y,5.6,0,Math.PI*2);
     fxx.fillStyle=T.ink; fxx.fill();
@@ -545,9 +558,9 @@
     }
 
     if(S.holding && S.finger.x>-100){
-      fxx.beginPath(); fxx.arc(S.finger.x,S.finger.y,9,0,Math.PI*2);
-      fxx.strokeStyle=inRange?T.gray:ac;
-      fxx.globalAlpha=inRange?1:0.5; fxx.lineWidth=1.2; fxx.stroke(); fxx.globalAlpha=1;
+      fxx.beginPath(); fxx.arc(S.finger.x,S.finger.y,10,0,Math.PI*2);
+      fxx.strokeStyle=inRange?rgba(T.dark?'#EDE8DC':'#1F1D1A',0.6):rgba(ac,0.75);
+      fxx.lineWidth=1.4; fxx.stroke();
     }
   }
 
