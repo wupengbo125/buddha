@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export type ChantSession = {
   /** 敲击：判超时清零 / 续上，返回本次是否重开。 */
-  tap: () => void;
+  tap: () => number;
   /** 本次已敲的声数（两种模式都记；次数模式还用于计量，时间模式只用于弹幕轮动）。 */
   taps: number;
   /** true = 停表（超时或作废后），渲染置灰。 */
@@ -83,6 +83,8 @@ export function useChantSession(options: {
     bump((value) => value + 1);
     // 到点没有敲击：停表、本次清零。
     timerRef.current = setTimeout(stop, idleSeconds * 1000);
+    // 返回敲完这一下之后的本次声数：调用方同步拿它取弹幕，不能读渲染前的旧值。
+    return ref.current.taps;
   };
 
   const touch = () => {

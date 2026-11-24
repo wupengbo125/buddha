@@ -240,8 +240,8 @@ export function ChantClient() {
                 // 提醒点没点掉：只响一声磬，不计数、不加时，让人立刻发现要回来点。
                 if (attention) { chant.touch(); if (soundEnabled && Date.now() - lastChimeRef.current > 350) { lastChimeRef.current = Date.now(); playAttentionChime(); } return; }
                 // 时长模式只走本地计时与分钟上报，不发 /taps；但音效弹幕照常。
-                chant.tap();
-                feedbackTap(selected, chant.taps);
+                const taps = chant.tap();
+                feedbackTap(selected, taps);
                 chant.evaluate(chant.seconds());
               }} />
             </div>
