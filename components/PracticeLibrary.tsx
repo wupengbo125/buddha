@@ -36,12 +36,12 @@ function makeEditor(item?: Practice): Editor {
     name: item?.name ?? '',
     description: item?.description ?? '',
     target: item ? String(item.target) : '10000',
-    targetKind: item?.targetKind === 'time' ? 'time' : 'count',
+    targetKind: item ? (item.targetKind === 'time' ? 'time' : 'count') : 'time',
     minutes: item?.targetSeconds ? String(Math.round(item.targetSeconds / 60)) : '60',
     idle: String(item?.idleSeconds || 10),
-    min: item?.targetKind === 'time'
-      ? String(Math.round((item?.minSeconds || 300) / 60))
-      : String(item?.minSeconds || 100),
+    min: !item ? '5' : item.targetKind === 'time'
+      ? String(Math.round((item.minSeconds || 300) / 60))
+      : String(item.minSeconds || 100),
     prompts: item ? [...item.prompts] : [],
   };
 }
@@ -368,8 +368,8 @@ export function PracticeLibrary() {
             <label className={styles.label} htmlFor="practice-name">名称（必填）<input id="practice-name" className="field" required value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>
             <label className={styles.label} htmlFor="practice-description">简介<textarea id="practice-description" className="field" rows={2} value={editor.description} onChange={(event) => setEditor({ ...editor, description: event.target.value })} /></label>
             <div className={styles.typeRow} role="group" aria-label="目标类型">
-              <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'count' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'count' })}>次数</button>
-              <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'time' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'time' })}>时长</button>
+              <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'time' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'time', min: editor.min === '100' ? '5' : editor.min })}>时长</button>
+              <button type="button" className={`${styles.typeButton} ${editor.targetKind === 'count' ? styles.typeActive : ''}`} onClick={() => setEditor({ ...editor, targetKind: 'count', min: editor.min === '5' ? '100' : editor.min })}>次数</button>
             </div>
             {editor.targetKind === 'count'
               ? <div className={styles.timeFields}>
