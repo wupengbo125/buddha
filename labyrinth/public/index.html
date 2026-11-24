@@ -115,7 +115,7 @@
     clearArt();
     S.x=S.W/2+(Math.random()-0.5)*S.W*0.2;
     S.y=S.H-MARGIN;
-    S.ang=-Math.PI/2; S.angTarget=-Math.PI/2; S.segLeft=0;
+    S.ang=-Math.PI/2; S.curv=0; S.targetCurv=0; S.nextCurvAt=0;
     S.prevX=S.x; S.prevY=S.y;
     S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
     timerEl.textContent='00:00';
@@ -128,16 +128,37 @@
     return d;
   }
 
+
+  // 挑一个方向：在当前方向附近随机，但不许马上绕回刚画过的线，否则会缠成圈
+  // 弧线：曲率每 0.7~1.8 秒随机换一个温和的值，再慢慢追过去；靠近旧线或纸边时缓缓向外偏
   function steer(dt){
-    // 方向仍是一小段就独立重随机，但转的时候走圆角：20~30px 内转完，不留尖角
-    if(S.segLeft<=0){
-      // 新方向：在当前方向上随机甩 0~110 度，绝不原路返回，所以不会原地打圈
-      S.angTarget=wrap(S.ang+(Math.random()<0.5?-1:1)*(0.2+Math.random()*0.95));
-      S.segLeft=65+Math.random()*60;
+    S.nextCurvAt-=dt;
+    if(S.nextCurvAt<=0){
+      S.targetCurv=(Math.random()*2-1)*0.4;
+      S.nextCurvAt=0.7+Math.random()*1.1;
     }
-    const d=wrap(S.angTarget-S.ang);
-    const maxTurn=Math.min(Math.abs(d), 1.6*dt*SPEEDS[speedIdx].v/60*1.0);
-    S.ang=wrap(S.ang+Math.sign(d)*Math.min(Math.abs(d), d*Math.min(1,dt*9)));
+    S.curv+=(S.targetCurv-S.curv)*Math.min(1,dt*4.5);
+    let bias=0;
+
+    // 前方 120px 若有自己画过的线，就往反方向偏，避免缠在一起
+    const ax=S.x+Math.cos(S.ang)*120, ay=S.y+Math.sin(S.ang)*120;
+    const ref=S.tail;
+    let near=1e9;
+    for(let i=0;i<ref.length;i+=2){
+      const d=Math.hypot(ax-ref[i][0],ay-ref[i][1]);
+      if(d<near) near=d;
+    }
+    if(near<120) bias+=0.9*(1-near/120)*(Math.random()<0.5?-1:1);
+
+    // 离纸边太近就缓缓转回来，用大半径弧绕开，不硬拐
+    const look=Math.min(150, S.W*0.3);
+    const px=S.x+Math.cos(S.ang)*look, py=S.y+Math.sin(S.ang)*look;
+    if(px<MARGIN) bias-=1.05;
+    else if(px>S.W-MARGIN) bias+=1.05;
+    if(py<MARGIN) bias-=1.05;
+    else if(py>S.H-MARGIN) bias+=1.05;
+
+    S.ang+= (S.curv+bias)*dt;
   }
 
   const GRAY='rgba(31,29,26,0.52)';
@@ -145,17 +166,15 @@
 
   function advance(dt){
     const step=SPEEDS[speedIdx].v*dt;
-    S.segLeft-=step;
     S.prevX=S.x; S.prevY=S.y;
     S.x+=Math.cos(S.ang)*step;
     S.y+=Math.sin(S.ang)*step;
     // 碰到纸边：不反弹，直接随机挑一个朝里的新方向，每次都不一样
     // 撞边就像光一样弹回去，方向一定背离这条边，不会顺着边滑
-    const j=()=>(Math.random()-0.5)*0.2;
-    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang+j()); S.angTarget=S.ang; }
-    else if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang+j()); S.angTarget=S.ang; }
-    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang+j()); S.angTarget=S.ang; }
-    else if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang+j()); S.angTarget=S.ang; }
+    if(S.x<MARGIN){ S.x=MARGIN; S.ang=wrap(Math.PI-S.ang+(Math.random()-0.5)*0.15); }
+    else if(S.x>S.W-MARGIN){ S.x=S.W-MARGIN; S.ang=wrap(Math.PI-S.ang+(Math.random()-0.5)*0.15); }
+    if(S.y<MARGIN){ S.y=MARGIN; S.ang=wrap(-S.ang+(Math.random()-0.5)*0.15); }
+    else if(S.y>S.H-MARGIN){ S.y=S.H-MARGIN; S.ang=wrap(-S.ang+(Math.random()-0.5)*0.15); }
 
     // 走过的部分：用浅墨永久留在这张画上
     artx.beginPath();
