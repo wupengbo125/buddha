@@ -236,7 +236,7 @@ export function ChantClient() {
               <div className="chant-caption" aria-live="off">
                 {caption && <Caption key={caption.token} data={caption} />}
               </div>
-              {attention && <button type="button" className="attention-dot" style={ATTENTION_SPOTS[attentionSpot]} aria-label="点一下继续念诵" onClick={dismissAttention}><img src="/lotus.png" width={26} height={26} alt="" draggable={false} /></button>}
+              {attention && <button type="button" className="attention-dot" style={ATTENTION_SPOTS[attentionSpot]} aria-label="点一下继续念诵" onClick={dismissAttention}><span className="attention-lotus"><img src="/lotus.png" width={26} height={26} alt="" draggable={false} /></span></button>}
               <WoodenFish onTap={() => {
                 // 提醒点没点掉：只响一声磬，不计数、不加时，让人立刻发现要回来点。
                 if (attention) { chant.touch(); if (soundEnabled && Date.now() - lastChimeRef.current > 350) { lastChimeRef.current = Date.now(); playAttentionChime(); } return; }

@@ -145,17 +145,27 @@
 /* 专注提醒点：出现在木鱼上方，点掉才继续；期间时间与次数冻结。 */
 .attention-dot {
   position: absolute;
+  /* 点击热区固定 52px（花的视觉仍 26px），且不随呼吸动画变化。 */
+  width: 52px;
+  height: 52px;
+  margin: -13px 0 0 -13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+}
+.attention-lotus {
   width: 26px;
   height: 26px;
-  padding: 0;
   border-radius: 50%;
-  border: 0;
   background: rgb(var(--c-bg));
   border: 1px solid rgb(var(--c-line));
   box-shadow: 0 2px 10px rgb(20 40 30 / .18);
   display: grid;
   place-items: center;
-  z-index: 3;
+  pointer-events: none;
   animation: attention-breath 1.8s ease-in-out infinite;
 }
 .attention-dot img { width: 26px; height: 26px; object-fit: contain; }
@@ -163,4 +173,4 @@
   0%, 100% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / .38); opacity: .85; }
   50% { box-shadow: 0 0 0 12px rgb(var(--c-accent) / 0); opacity: 1; }
 }
-@media (prefers-reduced-motion: reduce) { .attention-dot { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .attention-lotus { animation: none; } }
