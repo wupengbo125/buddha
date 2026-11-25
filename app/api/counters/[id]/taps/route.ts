@@ -10,6 +10,8 @@ import type { CounterTotals } from '@/lib/taps';
 const TapBody = z.object({
   event_id: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/),
   delta: z.number().int().min(1).max(10000).default(1),
+  /** 本批真实念诵秒数（次数模式按时长记账用，和声数分开）。 */
+  seconds: z.number().int().min(1).max(3600).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const parsed = TapBody.safeParse(await readJson(req));
   if (!parsed.success) return jsonError('输入无效', 400);
-  const { event_id, date, delta: reported } = parsed.data;
+  const { event_id, date, delta: reported, seconds: spent } = parsed.data;
   try {
     const { DB } = getEnv();
     const practice = await DB.prepare('SELECT target_kind, idle_seconds FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner).first<{ target_kind: string; idle_seconds: number }>();
@@ -35,7 +37,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // 只留最近的 event_id 防重发；累计由触发器加到 counters 的一个数上，不再逐条存流水。
-    const seconds = practice.target_kind === 'time' ? delta : delta * 2;
+    // 次数模式：counter 加声数，西游总账加客户端测得的真实秒数（不再按 1 声 2 秒折算）。
+    const seconds = practice.target_kind === 'time' ? delta : (spent ?? reported * 2);
     const inserted = await DB.prepare(
       'INSERT OR IGNORE INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )

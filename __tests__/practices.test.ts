@@ -63,8 +63,10 @@ describe('practice API', () => {
     const taps = await import('@/app/api/counters/[id]/taps/route');
     const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'batch', prompts: [], target: 500 })));
     for (const [event, delta] of [['batch-100', 100], ['batch-1', 1]] as const) {
-      await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: event, delta, date: '2026-11-13' }), context(practice.id));
+      await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: event, delta, seconds: 90, date: '2026-11-13' }), context(practice.id));
     }
+    // 声数进 counter，真实秒数进时长总账，两者独立。
+    expect(sqlite.prepare('SELECT SUM(seconds) AS s, SUM(delta) AS d FROM tap_marks').get()).toEqual({ s: 180, d: 101 });
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ personal_total: 101 }]);
     const duplicate = await readJson<{ applied: boolean }>(taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'batch-100', delta: 100, date: '2026-11-13' }), context(practice.id)));
     expect(duplicate.applied).toBe(false);

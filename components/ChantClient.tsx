@@ -129,13 +129,14 @@ export function ChantClient() {
   const tapBatch = Math.max(1, selected?.min_seconds ?? 100);
 
   const timeZone = loadSettings().timeZone;
-  const enqueue = (counterId: string, path: 'minutes' | 'taps', amount: number) => {
+  const enqueue = (counterId: string, path: 'minutes' | 'taps', amount: number, seconds?: number) => {
     const reportId = `${path}-${counterId}-${Date.now()}-${amount}`;
     const report: PendingChantReport = {
       eventId: reportId,
       counterId,
       path,
       amount,
+      seconds,
       date: dateKey(new Date(), timeZone),
     };
     setPending((value) => ({ ...value, [reportId]: report }));
@@ -145,16 +146,16 @@ export function ChantClient() {
     if (!selected || minutes <= 0) return;
     enqueue(selected.id, 'minutes', minutes);
   };
-  const reportTaps = (taps: number) => {
+  const reportTaps = (taps: number, seconds: number) => {
     if (!selected || taps <= 0) return;
-    enqueue(selected.id, 'taps', taps);
+    enqueue(selected.id, 'taps', taps, Math.max(1, Math.round(seconds)));
   };
 
   const chant = useChantSession({
     idleSeconds,
     threshold: isTime ? minSeconds : tapBatch,
     counted: !isTime,
-    onBatch: (batch) => (isTime ? reportMinutes(batch) : reportTaps(batch)),
+    onBatch: (batch, seconds) => (isTime ? reportMinutes(batch) : reportTaps(batch, seconds)),
   });
 
   // 专注提醒调度：只在正在念诵时计时；超时停表或提醒未点掉时都不推进。
