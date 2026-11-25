@@ -129,7 +129,7 @@ export function ChantClient() {
   const tapBatch = Math.max(1, selected?.min_seconds ?? 100);
 
   const timeZone = loadSettings().timeZone;
-  const enqueue = (counterId: string, path: 'minutes' | 'taps', amount: number, seconds?: number) => {
+  const enqueue = (counterId: string, path: 'minutes' | 'taps', amount: number, seconds?: number, taps?: number) => {
     const reportId = `${path}-${counterId}-${Date.now()}-${amount}`;
     const report: PendingChantReport = {
       eventId: reportId,
@@ -137,14 +137,15 @@ export function ChantClient() {
       path,
       amount,
       seconds,
+      taps,
       date: dateKey(new Date(), timeZone),
     };
     setPending((value) => ({ ...value, [reportId]: report }));
     reporterRef.current?.add(report);
   };
-  const reportMinutes = (minutes: number) => {
+  const reportMinutes = (minutes: number, taps: number) => {
     if (!selected || minutes <= 0) return;
-    enqueue(selected.id, 'minutes', minutes);
+    enqueue(selected.id, 'minutes', minutes, undefined, taps);
   };
   const reportTaps = (taps: number, seconds: number) => {
     if (!selected || taps <= 0) return;
@@ -155,7 +156,7 @@ export function ChantClient() {
     idleSeconds,
     threshold: isTime ? minSeconds : tapBatch,
     counted: !isTime,
-    onBatch: (batch, seconds) => (isTime ? reportMinutes(batch) : reportTaps(batch, seconds)),
+    onBatch: (batch, seconds, taps) => (isTime ? reportMinutes(batch, taps) : reportTaps(batch, seconds)),
   });
 
   // 专注提醒调度：只在正在念诵时计时；超时停表或提醒未点掉时都不推进。

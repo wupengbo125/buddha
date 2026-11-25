@@ -9,6 +9,8 @@ import type { CounterTotals } from '@/lib/taps';
 const Body = z.object({
   event_id: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/),
   minutes: z.number().int().min(1).max(600),
+  /** 这几分钟里敲的声数（时长模式同样记声数）。 */
+  taps: z.number().int().min(0).max(100000).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const parsed = Body.safeParse(await readJson(req));
   if (!parsed.success) return jsonError('输入无效', 400);
-  const { event_id, minutes, date } = parsed.data;
+  const { event_id, minutes, date, taps = 0 } = parsed.data;
   try {
     const { DB } = getEnv();
     const practice = await DB.prepare('SELECT target_kind FROM practices WHERE id = ? AND owner_id = ?').bind(id, owner).first<{ target_kind: string }>();
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const inserted = await DB.prepare(
       'INSERT OR IGNORE INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-      .bind(id, owner, event_id, seconds, seconds, date, new Date().toISOString())
+      .bind(id, owner, event_id, taps, seconds, date, new Date().toISOString())
       .run();
     if (!inserted.success) return jsonError('上报失败', 500);
     await DB.prepare('DELETE FROM tap_marks WHERE owner_id = ? AND created_at < ?').bind(owner, new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()).run();

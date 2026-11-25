@@ -47,33 +47,23 @@ describe('journey levels', () => {
 });
 
 describe('journey stats', () => {
-  it('converts every practice into seconds and splits today/week/month by event date', async () => {
+  it('keeps one row per person: history plus natural week, independent from practices', async () => {
     const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite');
     const sqlite = new DatabaseSync(':memory:');
     sqlite.exec(readSchemaSql());
     const db = sqliteD1(sqlite);
-    const insertPractice = (id: string, kind: string, total: number) => {
-      sqlite.prepare("INSERT INTO practices (id, owner_id, name, prompts, target, target_kind, target_seconds, idle_seconds, min_seconds, round_done, visibility, revision, publication_epoch, created_at, updated_at) VALUES (?, 'owner', 'p', '[]', 1, ?, 0, 10, 100, 0, 'private', 1, 0, '2026-01-01', '2026-01-01')").run(id, kind);
-      sqlite.prepare("UPDATE counters SET total = ? WHERE id = ?").run(total, id);
-    };
-    insertPractice('count', 'count', 1800); // 1800 声 = 3600 秒
-    insertPractice('timed', 'time', 600); // 600 秒
-    const now = new Date(Date.now() + 8 * 3600 * 1000);
-    const todayKey = now.toISOString().slice(0, 10);
-    const weekKey = new Date(now.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
-    sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('count','owner','e1',30,60,?,'2026-11-16')").run(todayKey);
-    sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('timed','owner','e2',120,120,?,'2026-11-10')").run(weekKey);
-    sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('timed','owner','e3',300,300,'2026-10-30','2026-10-30')").run();
+    sqlite.prepare("INSERT INTO practices (id, owner_id, name, prompts, target, target_kind, target_seconds, idle_seconds, min_seconds, round_done, visibility, revision, publication_epoch, created_at, updated_at) VALUES ('count', 'owner', 'p', '[]', 1, 'count', 0, 10, 100, 0, 'private', 1, 0, '2026-01-01', '2026-01-01')").run();
+    const mark = (event: string, delta: number, seconds: number, date: string) =>
+      sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('count','owner',?,?,?,?,?)").run(event, delta, seconds, date, date);
+    mark('e1', 30, 60, '2026-11-17'); // 本周（周一 11-16）
+    mark('e2', 120, 120, '2026-11-12'); // 上周
+    mark('e3', 300, 300, '2026-10-30');
     const stats = await journeyStats(db, 'owner');
-    expect(stats.seconds).toBe(480); // 30×2 + 120 + 300，历史只按打卡流水算，归零不倒退
-    expect(stats.today).toBe(60);
-    expect(stats.week).toBe(180);
-    expect(stats.month).toBe(180);
-    // 删除发愿会清掉它的打卡流水，但西游总账不受影响。
+    expect(stats).toEqual({ seconds: 480, week: 60 });
+    // 删除发愿不影响西游总账；总账始终只有一行。
     sqlite.prepare("DELETE FROM practices WHERE id = 'count'").run();
-    const after = await journeyStats(db, 'owner');
-    expect(after.seconds).toBe(480);
-    sqlite.close();
+    expect(await journeyStats(db, 'owner')).toEqual({ seconds: 480, week: 60 });
+    expect((sqlite.prepare('SELECT COUNT(*) AS n FROM journey_totals').get() as { n: number }).n).toBe(1);
   });
 });
 

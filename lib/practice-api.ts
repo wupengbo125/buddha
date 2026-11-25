@@ -43,7 +43,7 @@ export const detailHandlers = {
         const db = getEnv().DB;
         if (!db.batch) throw new Error('D1 batch is required');
         await db.batch([
-          db.prepare('UPDATE counters SET total = 0, today = 0, updated_at = ? WHERE id = ?').bind(now, id),
+          db.prepare('UPDATE counters SET total = 0, today = 0, taps_total = 0, taps_today = 0, seconds_total = 0, seconds_today = 0, updated_at = ? WHERE id = ?').bind(now, id),
           db.prepare('UPDATE practices SET round_done = 0, rounds_done = 0, updated_at = ? WHERE id = ? AND owner_id = ?').bind(now, id, owner),
         ]);
         return NextResponse.json({ ok: true });

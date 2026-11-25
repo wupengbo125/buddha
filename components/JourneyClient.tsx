@@ -70,9 +70,7 @@ export function JourneyClient({ stats }: { stats: JourneyStats }) {
       </>}
 
       <section className={styles.stats} aria-label="修行统计">
-        <div><span>今日</span><b>{hm(stats.today)}</b></div>
         <div><span>本周</span><b>{hm(stats.week)}</b></div>
-        <div><span>本月</span><b>{hm(stats.month)}</b></div>
         <div><span>历史</span><b>{hm(stats.seconds)}</b></div>
         <div><span>已通关</span><b>{state.cleared} / 40</b></div>
       </section>

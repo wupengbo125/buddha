@@ -107,8 +107,11 @@ export async function editContent(db: D1Database, id: string, owner: string, bod
   const current = await ownedContent(db, id, owner);
   const patch = practiceInput.partial().parse(body);
   const input = practiceInput.parse({ ...current, ...patch });
-  await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, target_kind = ?, target_seconds = ?, idle_seconds = ?, min_seconds = ?, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
-    .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, input.minSeconds, new Date().toISOString(), id, owner).run();
+  await db.prepare("UPDATE practices SET name = ?, description = ?, prompts = ?, target = ?, target_kind = ?, target_seconds = ?, idle_seconds = ?, min_seconds = ?, round_done = CASE WHEN (? = 'time' AND (SELECT seconds_total FROM counters WHERE id = practices.id) >= (rounds_done + 1) * ?) OR (? = 'count' AND (SELECT taps_total FROM counters WHERE id = practices.id) >= (rounds_done + 1) * ?) THEN 1 ELSE 0 END, visibility = CASE WHEN approved_snapshot IS NOT NULL OR visibility = 'pending' THEN 'pending' ELSE visibility END, revision = revision + 1, updated_at = ? WHERE id = ? AND owner_id = ?")
+    .bind(input.name, input.description, JSON.stringify(input.prompts), input.target, input.targetKind, input.targetSeconds, input.idleSeconds, input.minSeconds, input.targetKind, input.targetSeconds, input.targetKind, input.target, new Date().toISOString(), id, owner).run();
+  // 模式只决定显示哪一个：累计/今日换成新模式对应的那个数，声数与秒数本身不动。
+  await db.prepare("UPDATE counters SET total = CASE WHEN ? = 'time' THEN seconds_total ELSE taps_total END, today = CASE WHEN ? = 'time' THEN seconds_today ELSE taps_today END, updated_at = ? WHERE id = ?")
+    .bind(input.targetKind, input.targetKind, new Date().toISOString(), id).run();
   return ownedContent(db, id, owner);
 }
 

@@ -31,19 +31,19 @@ export function useChantSession(options: {
   idleSeconds: number;
   /** 时间模式=最少坚持秒数；次数模式=每批声数。 */
   threshold: number;
-  /** 每满一批回调（时间=分钟数，次数=本批声数 + 本批真实秒数）。 */
-  onBatch: (batch: number, seconds: number) => void;
+  /** 每满一批回调：时间=分钟数，次数=声数；两种模式都带本批真实秒数与本批声数。 */
+  onBatch: (batch: number, seconds: number, taps: number) => void;
   /** true=次数模式（每敲一下 +1，按 threshold 声上报）。 */
   counted?: boolean;
 }): ChantSession {
   const { idleSeconds, threshold, onBatch, counted } = options;
-  const ref = useRef({ startAt: null as number | null, lastTapAt: null as number | null, taps: 0, reported: 0, reportedAt: Date.now() });
+  const ref = useRef({ startAt: null as number | null, lastTapAt: null as number | null, taps: 0, reported: 0, reportedAt: Date.now(), tapsReported: 0 });
   const [paused, setPaused] = useState(true);
   const [, bump] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stop = () => {
-    ref.current = { startAt: null, lastTapAt: null, taps: 0, reported: 0, reportedAt: 0 };
+    ref.current = { startAt: null, lastTapAt: null, taps: 0, reported: 0, reportedAt: 0, tapsReported: 0 };
     setPaused(true);
     bump((value) => value + 1);
   };
@@ -57,14 +57,15 @@ export function useChantSession(options: {
         const spent = Math.max(1, Math.round((Date.now() - ref.current.reportedAt) / 1000));
         ref.current.reported = whole;
         ref.current.reportedAt = Date.now();
-        onBatch(batch, spent);
+        onBatch(batch, spent, batch);
       }
     } else if (seconds >= threshold) {
       const whole = Math.floor(seconds / 60);
       if (whole > ref.current.reported) {
         const batch = whole - ref.current.reported;
         ref.current.reported = whole;
-        onBatch(batch, batch * 60);
+        onBatch(batch, batch * 60, ref.current.taps - ref.current.tapsReported);
+        ref.current.tapsReported = ref.current.taps;
       }
     }
   };
@@ -75,7 +76,7 @@ export function useChantSession(options: {
     const gap = ref.current.lastTapAt === null ? Infinity : now - ref.current.lastTapAt;
     if (ref.current.startAt === null || gap > idleSeconds * 1000) {
       // 本次还没开始，或隔太久才敲：本次整段作废，从现在重新开始。
-      ref.current = { startAt: now, lastTapAt: now, taps: 0, reported: 0, reportedAt: now };
+      ref.current = { startAt: now, lastTapAt: now, taps: 0, reported: 0, reportedAt: now, tapsReported: 0 };
       setPaused(false);
     } else {
       ref.current.lastTapAt = now;

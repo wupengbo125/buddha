@@ -14,6 +14,8 @@ export type PendingChantReport = {
   amount: number; // minutes 或 taps 声数
   /** 次数模式这一批的真实念诵秒数（按时长进总账，与声数无关）。 */
   seconds?: number;
+  /** 时长模式这几分钟里的声数。 */
+  taps?: number;
 };
 
 const RETRY_DELAY_MS = 1500;
@@ -42,7 +44,7 @@ function eventId(prefix: string, id: string, size: number): string {
 
 function reportBody(report: PendingChantReport): object {
   return report.path === 'minutes'
-    ? { event_id: report.eventId, minutes: report.amount, date: report.date }
+    ? { event_id: report.eventId, minutes: report.amount, taps: report.taps, date: report.date }
     : { event_id: report.eventId, delta: report.amount, seconds: report.seconds, date: report.date };
 }
 

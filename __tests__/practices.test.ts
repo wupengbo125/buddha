@@ -73,6 +73,29 @@ describe('practice API', () => {
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ personal_total: 101 }]);
   });
 
+  it('stores taps and seconds in one row; switching mode only changes what is shown', async () => {
+    const practices = await import('@/app/api/practices/route');
+    const detail = await import('@/app/api/practices/[id]/route');
+    const taps = await import('@/app/api/counters/[id]/taps/route');
+    const minutes = await import('@/app/api/counters/[id]/minutes/route');
+    const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'both', prompts: [], target: 200, targetKind: 'count', targetSeconds: 0, minSeconds: 100 })));
+    // 次数模式：100 声用了 90 秒 → 声数、秒数都进同一行。
+    await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'b1', delta: 100, seconds: 90, date: today }), context(practice.id));
+    // 改成时长模式：数据不动，显示值换成秒数；时长模式上报也带声数（60 声 / 2 分钟）。
+    await detail.PATCH(request(`practices/${practice.id}`, 'PATCH', { targetKind: 'time', targetSeconds: 600, minSeconds: 300 }), context(practice.id));
+    expect(sqlite.prepare('SELECT total, today, taps_total, seconds_total FROM counters WHERE id = ?').get(practice.id)).toEqual({ total: 90, today: 90, taps_total: 100, seconds_total: 90 });
+    const minuteReport = await minutes.POST(request(`counters/${practice.id}/minutes`, 'POST', { event_id: 'm1', minutes: 2, taps: 60, date: today }), context(practice.id));
+    expect([minuteReport.status, await minuteReport.json()]).toEqual([200, expect.objectContaining({ applied: true })]);
+    expect(sqlite.prepare('SELECT total, today, taps_total, seconds_total FROM counters WHERE id = ?').get(practice.id)).toEqual({ total: 210, today: 210, taps_total: 160, seconds_total: 210 });
+    // 改回次数模式：显示声数，两次模式的敲击都算在内。
+    const back = await readJson<Practice>(detail.PATCH(request(`practices/${practice.id}`, 'PATCH', { targetKind: 'count', target: 400, minSeconds: 100 }), context(practice.id)));
+    expect(back).toMatchObject({ personal_total: 160 });
+    expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ personal_total: 160, today_total: 160 }]);
+    expect(sqlite.prepare('SELECT seconds_total, taps_total FROM counters WHERE id = ?').get(practice.id)).toEqual({ seconds_total: 210, taps_total: 160 });
+    expect(sqlite.prepare('SELECT seconds, week_seconds FROM journey_totals').all()).toEqual([{ seconds: 210, week_seconds: 210 }]);
+  });
+
   it('keeps practice fields coherent through the detail PATCH', async () => {
     const practices = await import('@/app/api/practices/route');
     const detail = await import('@/app/api/practices/[id]/route');
