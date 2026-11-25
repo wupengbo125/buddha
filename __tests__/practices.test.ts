@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { readSchemaSql, sqliteD1 } from '@/lib/local';
 import type { discoverList, favoriteList } from '@/lib/practice-discovery';
 import type { Practice, PracticeReview } from '@/lib/practice-types';
+import { dateKey } from '@/lib/time';
 
 type Reviewed<Content> = Content & { reviews: PracticeReview[] };
 type DiscoveryPage = Awaited<ReturnType<typeof discoverList>>;
@@ -78,7 +79,7 @@ describe('practice API', () => {
     const detail = await import('@/app/api/practices/[id]/route');
     const taps = await import('@/app/api/counters/[id]/taps/route');
     const minutes = await import('@/app/api/counters/[id]/minutes/route');
-    const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const today = dateKey(new Date(), 'Asia/Shanghai');
     const practice = await readJson<Practice>(practices.POST(request('practices', 'POST', { name: 'both', prompts: [], target: 200, targetKind: 'count', targetSeconds: 0, minSeconds: 100 })));
     // 次数模式：100 声用了 90 秒 → 声数、秒数都进同一行。
     await taps.POST(request(`counters/${practice.id}/taps`, 'POST', { event_id: 'b1', delta: 100, seconds: 90, date: today }), context(practice.id));
@@ -93,7 +94,7 @@ describe('practice API', () => {
     expect(back).toMatchObject({ personal_total: 160 });
     expect(await readJson(practices.GET(request('practices')))).toMatchObject([{ personal_total: 160, today_total: 160 }]);
     expect(sqlite.prepare('SELECT seconds_total, taps_total FROM counters WHERE id = ?').get(practice.id)).toEqual({ seconds_total: 210, taps_total: 160 });
-    expect(sqlite.prepare('SELECT seconds, week_seconds FROM journey_totals').all()).toEqual([{ seconds: 210, week_seconds: 210 }]);
+    expect(sqlite.prepare('SELECT seconds, today_date, today_seconds, month, month_seconds FROM journey_totals').all()).toEqual([{ seconds: 210, today_date: today, today_seconds: 210, month: today.slice(0, 7), month_seconds: 210 }]);
   });
 
   it('keeps practice fields coherent through the detail PATCH', async () => {

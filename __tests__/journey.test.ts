@@ -4,6 +4,7 @@ import { readSchemaSql, sqliteD1 } from '@/lib/local';
 import { journeyRank } from '@/lib/journey-rank';
 import { JOURNEY_HOURS, JOURNEY_LEVELS, JOURNEY_TARGETS, hm, journeyState, practiceSeconds } from '@/lib/journey';
 import { journeyStats } from '@/lib/journey-stats';
+import { dateKey } from '@/lib/time';
 
 describe('journey levels', () => {
   it('has 40 levels totalling 437 hours with monotonic targets', () => {
@@ -55,14 +56,24 @@ describe('journey stats', () => {
     sqlite.prepare("INSERT INTO practices (id, owner_id, name, prompts, target, target_kind, target_seconds, idle_seconds, min_seconds, round_done, visibility, revision, publication_epoch, created_at, updated_at) VALUES ('count', 'owner', 'p', '[]', 1, 'count', 0, 10, 100, 0, 'private', 1, 0, '2026-01-01', '2026-01-01')").run();
     const mark = (event: string, delta: number, seconds: number, date: string) =>
       sqlite.prepare("INSERT INTO tap_marks (counter_id, owner_id, event_id, delta, seconds, date, created_at) VALUES ('count','owner',?,?,?,?,?)").run(event, delta, seconds, date, date);
-    mark('e1', 30, 60, '2026-11-17'); // 本周（周一 11-16）
-    mark('e2', 120, 120, '2026-11-12'); // 上周
+    const key = (d: Date) => dateKey(d, 'Asia/Shanghai');
+    const now = new Date();
+    const day = key(now);
+    const monday = new Date(now);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const lastWeek = new Date(monday);
+    lastWeek.setDate(lastWeek.getDate() - 3);
+    mark('e1', 30, 60, day); // 今天，本周
+    mark('e2', 120, 120, key(lastWeek)); // 上周，迟到的旧上报
     mark('e3', 300, 300, '2026-10-30');
     const stats = await journeyStats(db, 'owner');
-    expect(stats).toEqual({ seconds: 480, week: 60 });
+    // 上周与上月的旧上报只进历史，不进本周 / 今日 / 本月。
+    const monthKey = day.slice(0, 7);
+    const inMonth = 60 + (key(lastWeek).startsWith(monthKey) ? 120 : 0) + ('2026-10'.concat() === monthKey ? 300 : 0);
+    expect(stats).toEqual({ seconds: 480, week: 60, today: 60, month: inMonth });
     // 删除发愿不影响西游总账；总账始终只有一行。
     sqlite.prepare("DELETE FROM practices WHERE id = 'count'").run();
-    expect(await journeyStats(db, 'owner')).toEqual({ seconds: 480, week: 60 });
+    expect(await journeyStats(db, 'owner')).toMatchObject({ seconds: 480, today: 60 });
     expect((sqlite.prepare('SELECT COUNT(*) AS n FROM journey_totals').get() as { n: number }).n).toBe(1);
   });
 });
