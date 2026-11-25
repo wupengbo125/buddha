@@ -109,7 +109,7 @@
     W:0,H:0,dpr:1,
     x:0,y:0,ang:0,prevX:0,prevY:0,t:0,
     holding:false,following:false,elapsed:0,best:0,
-    lastHud:0,frames:0,seen:[],tail:[],finger:{x:-999,y:-999},
+    lastHud:0,frames:0,seen:[],tail:[],finger:{x:-999,y:-999},total:0,totalDist:0,
     curv:0,targetCurv:0,nextCurvAt:0,base:0,jit:0,phase:0,
     th:0,rr:0,nextR:0,nextRAt:0,thetaW:1,
     x2:0,y2:0
@@ -431,10 +431,11 @@
     S.y=S.H-MARGIN-80;   // 起点抬高一点，别被底部按钮压住
     S.ang=-Math.PI/2;
     S.prevX=S.x; S.prevY=S.y;
-    S.t=0; S.elapsed=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
+    S.t=0; S.frames=0; S.seen=[]; S.following=false; S.tail=[];
+    // elapsed / total 不在这里清零：松手、换模式、换纸色都不打断计时
     S.x2=S.x; S.y2=S.y;
     if(M.init) M.init();
-    hudTimer='00:00'; drawHud();
+    hudTimer=fmt(S.total||0); drawHud();
     setHint('按住线头，跟着它走。走过的线会留在纸上。','');
   }
 
@@ -510,7 +511,7 @@
       S.following=true;
       steer(dt);
       advance(dt);
-      S.elapsed+=dt;
+      S.elapsed+=dt; S.total+=dt;
     }else{
       S.following=false;
       if(S.holding && now-(S.lastWaitHint||0)>2500){
@@ -569,14 +570,14 @@
   function hud(now){
     if(now-S.lastHud<800) return;
     S.lastHud=now;
-    hudTimer=fmt(S.elapsed);
-    if(S.elapsed>S.best){
-      S.best=S.elapsed;
+    hudTimer=fmt(S.total||0);
+    if(S.total>S.best){
+      S.best=S.total;
       try{localStorage.setItem('line.best',String(S.best));}catch(e){}
     }
     drawHud();
     for(const [sec,msg] of MOMENTS){
-      if(S.elapsed>=sec && S.seen.indexOf(sec)<0){ S.seen.push(sec); setHint(msg,'calm'); }
+      if(S.total>=sec && S.seen.indexOf(sec)<0){ S.seen.push(sec); setHint(msg,'calm'); }
     }
   }
 
@@ -670,7 +671,7 @@
     speedIdx=(speedIdx+1)%SPEEDS.length;
     btnSpeed.textContent=SPEEDS[speedIdx].label;
   });
-  btnAgain.addEventListener('click',()=>{ S.best=0; restart(); });
+  btnAgain.addEventListener('click',()=>{ S.total=0; S.elapsed=0; restart(); });
 
   window.addEventListener('resize',()=>setup());
   window.addEventListener('orientationchange',()=>setTimeout(setup,240));
